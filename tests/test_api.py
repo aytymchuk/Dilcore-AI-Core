@@ -19,7 +19,7 @@ class TestHealthEndpoint:
 
     def test_health_returns_200(self, test_client: TestClient) -> None:
         """Health endpoint should return 200 OK."""
-        response = test_client.get("/api/v1/metadata/health")
+        response = test_client.get("/api/v1/health")
         
         assert response.status_code == 200
         data = response.json()

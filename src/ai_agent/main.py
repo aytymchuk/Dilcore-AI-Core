@@ -10,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from scalar_fastapi import get_scalar_api_reference
 
-from ai_agent.api import router, streaming_router
+from ai_agent.api import health_router, router, streaming_router
 from ai_agent.config import get_settings
 
 # Configure logging
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
     )
 
     # Include API routes
+    app.include_router(health_router)
     app.include_router(router)
     app.include_router(streaming_router)
 

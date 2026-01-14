@@ -56,7 +56,7 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 |--------|----------|-------------|
 | `POST` | `/api/v1/metadata/generate` | Generate a template from a prompt (synchronous) |
 | `POST` | `/api/v1/metadata/generate-stream` | Stream template generation with SSE (real-time) |
-| `GET` | `/api/v1/metadata/health` | Health check |
+| `GET` | `/api/v1/health` | Health check |
 
 ### Documentation
 
