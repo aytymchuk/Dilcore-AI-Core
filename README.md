@@ -50,11 +50,38 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 
 ## API Endpoints
 
+### Metadata Generation
+
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `POST` | `/api/v1/generate` | Generate a template from a prompt |
-| `GET` | `/api/v1/health` | Health check |
-| `GET` | `/scalar` | API documentation |
+| `POST` | `/api/v1/metadata/generate` | Generate a template from a prompt (synchronous) |
+| `POST` | `/api/v1/metadata/generate-stream` | Stream template generation with SSE (real-time) |
+| `GET` | `/api/v1/metadata/health` | Health check |
+
+### Documentation
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/scalar` | Interactive API documentation |
+| `GET` | `/` | Root endpoint with docs link |
+
+### Streaming Endpoint
+
+The `/generate-stream` endpoint uses Server-Sent Events (SSE) for real-time generation:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Create a user registration form"}' \
+  --no-buffer
+```
+
+**Event Types:**
+- `thinking` - Reasoning content (if model supports thinking mode)
+- `content` - Generation content chunks
+- `template` - Final structured template with explanation
+- `error` - Error event
+- `done` - Stream completed
 
 ## Project Structure
 
@@ -75,12 +102,9 @@ All configuration is managed via environment variables (`.env` file):
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENROUTER_API_KEY` | Your OpenRouter API key | *required* |
-| `OPENROUTER_BASE_URL` | OpenRouter API endpoint | `https://openrouter.ai/api/v1` |
-| `OPENROUTER_MODEL` | Model to use | `openai/gpt-4o-mini` |
+| `OPENROUTER__API_KEY` | Your OpenRouter API key | *required* |
+| `OPENROUTER__BASE_URL` | OpenRouter API endpoint | `https://openrouter.ai/api/v1` |
+| `OPENROUTER__MODEL` | Model to use | `openai/gpt-oss-20b:free` |
 | `APP_DEBUG` | Enable debug mode | `false` |
 | `LOG_LEVEL` | Logging level | `INFO` |
 
-## License
-
-MIT
