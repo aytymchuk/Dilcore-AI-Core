@@ -13,7 +13,7 @@ from .dependencies import StreamingAgentDep
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["streaming"])
+router = APIRouter(prefix="/api/v1/metadata", tags=["metadata"])
 
 
 @router.post(

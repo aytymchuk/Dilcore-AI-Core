@@ -13,10 +13,10 @@ from .dependencies import AgentDep, SettingsDep
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["templates"])
+router = APIRouter(prefix="/api/v1/metadata", tags=["metadata"])
 
 
-@router.get("/health", status_code=status.HTTP_200_OK)
+@router.get("/health", status_code=status.HTTP_200_OK, tags=["system"])
 async def health_check(settings: SettingsDep) -> dict[str, Any]:
     """Health check endpoint.
 
