@@ -19,7 +19,7 @@ class TestHealthEndpoint:
 
     def test_health_returns_200(self, test_client: TestClient) -> None:
         """Health endpoint should return 200 OK."""
-        response = test_client.get("/api/v1/health")
+        response = test_client.get("/api/v1/metadata/health")
         
         assert response.status_code == 200
         data = response.json()
@@ -34,7 +34,7 @@ class TestGenerateEndpoint:
     def test_generate_validates_empty_prompt(self, test_client: TestClient) -> None:
         """Generate should reject empty prompts."""
         response = test_client.post(
-            "/api/v1/generate",
+            "/api/v1/metadata/generate",
             json={"prompt": ""},
         )
         
@@ -43,7 +43,7 @@ class TestGenerateEndpoint:
     def test_generate_validates_missing_prompt(self, test_client: TestClient) -> None:
         """Generate should reject missing prompt field."""
         response = test_client.post(
-            "/api/v1/generate",
+            "/api/v1/metadata/generate",
             json={},
         )
         
@@ -84,7 +84,7 @@ class TestGenerateEndpoint:
             mock_create_agent.return_value = mock_agent
 
             response = test_client.post(
-                "/api/v1/generate",
+                "/api/v1/metadata/generate",
                 json={"prompt": "Create a test template"},
             )
 

@@ -30,20 +30,16 @@ class TestSettings:
     def test_settings_uses_defaults(self) -> None:
         """Settings should use default values when env vars not set."""
         # Use minimal env vars - only what's required
+        # Use clear=True to completely isolate from .env file
         env_vars = {
             "OPENROUTER__API_KEY": "test-key",
         }
-        
-        # Clear other env vars that might interfere
-        clear_vars = ["APP_DEBUG", "APP_NAME", "LOG_LEVEL", "OPENROUTER__MODEL"]
-        
-        with patch.dict(os.environ, env_vars):
-            for var in clear_vars:
-                os.environ.pop(var, None)
-            
+
+        with patch.dict(os.environ, env_vars, clear=True):
             get_settings.cache_clear()
-            settings = Settings()
-            
+            # Disable .env file loading by passing _env_file=None
+            settings = Settings(_env_file=None)
+
             assert settings.openrouter.base_url == "https://openrouter.ai/api/v1"
             assert settings.openrouter.model == "openai/gpt-oss-20b:free"
             assert settings.app_debug is False
