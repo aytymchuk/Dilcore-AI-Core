@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -27,7 +27,7 @@ class StreamEvent(BaseModel):
     event_type: StreamEventType = Field(..., description="Type of streaming event")
     data: Any = Field(..., description="Event payload - string for chunks, dict for template")
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Event timestamp",
     )
 
