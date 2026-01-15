@@ -86,14 +86,84 @@ curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
 ## Project Structure
 
 ```
-ai-poc/
-├── src/ai_agent/
-│   ├── main.py          # FastAPI application
-│   ├── config/          # Settings and configuration
-│   ├── api/             # API routes and dependencies
-│   ├── agent/           # LangChain agent implementation
-│   └── schemas/         # Pydantic models
-└── tests/               # Test suite
+AI POC/
+├── src/
+│   └── ai_agent/
+│       ├── __init__.py
+│       ├── main.py              # 🚀 ENTRYPOINT - FastAPI application factory
+│       ├── config/
+│       │   ├── __init__.py
+│       │   └── settings.py      # Pydantic settings with .env support
+│       ├── api/
+│       │   ├── __init__.py      # Router exports
+│       │   ├── routes.py        # Sync generate endpoint + health
+│       │   ├── streaming_routes.py  # SSE streaming endpoint
+│       │   └── dependencies.py  # FastAPI dependency injection
+│       ├── agent/
+│       │   ├── __init__.py
+│       │   ├── core.py          # TemplateAgent (sync generation)
+│       │   ├── streaming.py     # StreamingTemplateAgent (SSE)
+│       │   └── prompts.py       # System/user prompt templates
+│       └── schemas/
+│           ├── __init__.py
+│           ├── request.py       # API request models
+│           ├── response.py      # Template response models
+│           └── streaming.py     # SSE event models
+├── tests/
+│   ├── conftest.py              # Pytest fixtures
+│   ├── test_agent.py            # Agent unit tests
+│   ├── test_api.py              # API endpoint tests
+│   ├── test_config.py           # Configuration tests
+│   └── test_streaming.py        # Streaming tests
+├── .env.example                 # Environment template
+├── pyproject.toml               # Project dependencies
+└── README.md
+```
+
+## Scripts & Commands
+
+### Development Server
+
+```bash
+# Start with auto-reload
+uvicorn src.ai_agent.main:app --reload
+
+# Start on specific port
+uvicorn src.ai_agent.main:app --reload --port 8080
+
+# Start with debug logging
+LOG_LEVEL=DEBUG uvicorn src.ai_agent.main:app --reload
+```
+
+### Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run with coverage
+pytest tests/ -v --cov=src/ai_agent
+
+# Run specific test file
+pytest tests/test_streaming.py -v
+```
+
+### API Testing
+
+```bash
+# Health check
+curl http://localhost:8000/api/v1/health
+
+# Generate template (sync)
+curl -X POST http://localhost:8000/api/v1/metadata/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Create a contact form"}'
+
+# Generate template (streaming)
+curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Create a user registration form"}' \
+  --no-buffer
 ```
 
 ## Configuration
@@ -107,4 +177,3 @@ All configuration is managed via environment variables (`.env` file):
 | `OPENROUTER__MODEL` | Model to use | `openai/gpt-oss-20b:free` |
 | `APP_DEBUG` | Enable debug mode | `false` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-
