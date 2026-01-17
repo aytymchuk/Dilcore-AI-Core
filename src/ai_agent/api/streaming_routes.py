@@ -8,6 +8,7 @@ from fastapi import APIRouter, status
 from fastapi.responses import StreamingResponse
 
 from ai_agent.schemas import GenerateRequest
+from ai_agent.schemas.errors import ProblemDetails
 
 from .dependencies import StreamingAgentDep
 
@@ -32,6 +33,28 @@ Stream the template generation process using Server-Sent Events (SSE).
 
 **Response Format:** Each event is sent as `data: {json}\\n\\n` in SSE format.
     """,
+    responses={
+        200: {
+            "description": "Successfully streaming template generation",
+            "content": {
+                "text/event-stream": {
+                    "example": "data: {\"event_type\":\"content\",\"data\":\"...\"}\n\n"
+                }
+            },
+        },
+        422: {
+            "description": "Validation error",
+            "model": ProblemDetails,
+        },
+        500: {
+            "description": "Template generation error",
+            "model": ProblemDetails,
+        },
+        502: {
+            "description": "LLM provider error",
+            "model": ProblemDetails,
+        },
+    },
 )
 async def generate_template_stream(
     request: GenerateRequest,

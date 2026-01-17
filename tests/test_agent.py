@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from ai_agent.exceptions import TemplateParsingError
 from ai_agent.schemas.response import TemplateResponse
 
 
@@ -66,19 +67,19 @@ class TestTemplateAgent:
 
     @pytest.mark.asyncio
     async def test_generate_template_raises_on_invalid_response(self, mock_settings) -> None:
-        """generate_template should raise ValueError on invalid LLM response."""
+        """generate_template should raise TemplateParsingError on invalid LLM response."""
         # Mock the ChatOpenAI class before creating the agent
         mock_llm = MagicMock()
         mock_response = MagicMock()
         mock_response.content = "This is not valid JSON"
         mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-        
+
         with patch("ai_agent.agent.core.ChatOpenAI", return_value=mock_llm):
             from ai_agent.agent.core import TemplateAgent
-            
+
             agent = TemplateAgent(mock_settings)
-            
-            with pytest.raises(ValueError, match="Failed to generate template"):
+
+            with pytest.raises(TemplateParsingError, match="Unable to parse"):
                 await agent.generate_template("Create something")
 
 

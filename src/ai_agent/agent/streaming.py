@@ -7,11 +7,18 @@ import logging
 import re
 from typing import AsyncGenerator, Optional
 
+from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_openai import ChatOpenAI
+from openai import APIConnectionError, APIError, RateLimitError
 
 from ai_agent.config import Settings
+from ai_agent.exceptions import (
+    LLMProviderError,
+    TemplateGenerationError,
+    TemplateParsingError,
+)
 from ai_agent.schemas.response import TemplateResponse
 from ai_agent.schemas.streaming import (
     StreamEvent,
@@ -120,11 +127,28 @@ class StreamingTemplateAgent:
                 template_response.template.template_id,
             )
 
-        except Exception as e:
-            logger.exception("Streaming generation failed")
+        except (APIConnectionError, APIError, RateLimitError):
+            logger.exception("LLM provider communication failed")
+            error_msg = "Unable to communicate with AI provider"
             yield StreamEvent(
                 event_type=StreamEventType.ERROR,
-                data=str(e),
+                data=error_msg,
+            )
+
+        except (OutputParserException, TemplateParsingError):
+            logger.exception("Failed to parse LLM response")
+            error_msg = "Unable to parse the generated template response"
+            yield StreamEvent(
+                event_type=StreamEventType.ERROR,
+                data=error_msg,
+            )
+
+        except Exception:
+            logger.exception("Unexpected error during streaming generation")
+            error_msg = "An unexpected error occurred during template generation"
+            yield StreamEvent(
+                event_type=StreamEventType.ERROR,
+                data=error_msg,
             )
 
     def _is_thinking_chunk(self, chunk) -> bool:
@@ -163,7 +187,7 @@ class StreamingTemplateAgent:
             StreamingTemplateResponse with parsed template and explanation.
 
         Raises:
-            ValueError: If parsing fails.
+            TemplateParsingError: If parsing fails.
         """
         try:
             # Extract JSON from markdown code block
@@ -194,7 +218,9 @@ class StreamingTemplateAgent:
 
         except Exception as e:
             logger.exception("Failed to parse streaming response")
-            raise ValueError(f"Failed to parse streaming response: {e}") from e
+            raise TemplateParsingError(
+                "Unable to parse the generated template response"
+            ) from e
 
 
 _streaming_agent_instance: Optional[StreamingTemplateAgent] = None

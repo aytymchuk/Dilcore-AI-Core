@@ -5,9 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, status
 
 from ai_agent.schemas import GenerateRequest, TemplateResponse
+from ai_agent.schemas.errors import ProblemDetails
 
 from .dependencies import AgentDep, SettingsDep
 
@@ -39,6 +40,24 @@ async def health_check(settings: SettingsDep) -> dict[str, Any]:
     status_code=status.HTTP_200_OK,
     summary="Generate Template",
     description="Generate a structured JSON template based on the user's prompt.",
+    responses={
+        200: {
+            "description": "Successfully generated template",
+            "model": TemplateResponse,
+        },
+        422: {
+            "description": "Validation error",
+            "model": ProblemDetails,
+        },
+        500: {
+            "description": "Template generation error",
+            "model": ProblemDetails,
+        },
+        502: {
+            "description": "LLM provider error",
+            "model": ProblemDetails,
+        },
+    },
 )
 async def generate_template(
     request: GenerateRequest,
@@ -54,16 +73,10 @@ async def generate_template(
         A structured TemplateResponse with sections and fields.
 
     Raises:
-        HTTPException: If template generation fails.
+        TemplateGenerationError: If template generation fails.
+        LLMProviderError: If LLM provider communication fails.
+        TemplateParsingError: If template parsing fails.
     """
     logger.info("Received template generation request")
-
-    try:
-        template = await agent.generate_template(request.prompt)
-        return template
-    except ValueError as e:
-        logger.error("Template generation failed: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=str(e),
-        ) from e
+    template = await agent.generate_template(request.prompt)
+    return template
