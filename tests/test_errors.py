@@ -325,7 +325,7 @@ class TestProblemDetailsNoInformationLeakage:
     def client(self):
         """Create test client."""
         env_vars = {
-            "OPENROUTER__API_KEY": "secret-api-key-12345",
+            "OPENROUTER__API_KEY": "PLACEHOLDER-NOT-A-REAL-KEY",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             from ai_agent.config.settings import get_settings
@@ -342,10 +342,9 @@ class TestProblemDetailsNoInformationLeakage:
         assert response.status_code == 422
         data = response.json()
 
-        # Check that sensitive information is not in the response
+        # Check that API key is not in the response
         response_str = str(data).lower()
-        assert "secret-api-key" not in response_str
-        assert "12345" not in response_str
+        assert "placeholder-not-a-real-key" not in response_str
 
     def test_error_does_not_expose_file_paths(self, client) -> None:
         """Error responses should not expose internal file paths."""
