@@ -127,7 +127,7 @@ class StreamingTemplateAgent:
                 template_response.template.template_id,
             )
 
-        except (APIConnectionError, APIError, RateLimitError) as e:
+        except (APIConnectionError, APIError, RateLimitError):
             logger.exception("LLM provider communication failed")
             error_msg = "Unable to communicate with AI provider"
             yield StreamEvent(
@@ -135,7 +135,7 @@ class StreamingTemplateAgent:
                 data=error_msg,
             )
 
-        except OutputParserException as e:
+        except (OutputParserException, TemplateParsingError):
             logger.exception("Failed to parse LLM response")
             error_msg = "Unable to parse the generated template response"
             yield StreamEvent(
@@ -143,7 +143,7 @@ class StreamingTemplateAgent:
                 data=error_msg,
             )
 
-        except Exception as e:
+        except Exception:
             logger.exception("Unexpected error during streaming generation")
             error_msg = "An unexpected error occurred during template generation"
             yield StreamEvent(
