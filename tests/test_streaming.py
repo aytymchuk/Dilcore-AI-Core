@@ -160,7 +160,8 @@ class TestStreamingTemplateAgent:
             # Should have error event
             assert len(events) >= 1
             assert events[-1].event_type == StreamEventType.ERROR
-            assert "API Error" in events[-1].data
+            # Error messages are sanitized to not expose internal details
+            assert "error occurred" in events[-1].data.lower()
 
     @pytest.mark.asyncio
     async def test_parse_response_extracts_template_and_explanation(
