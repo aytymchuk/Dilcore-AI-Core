@@ -81,8 +81,8 @@ class TestProblemDetailsResponses:
         assert response.headers["content-type"] == "application/problem+json"
 
         data = response.json()
-        assert data["type"] == "https://api.dilcore.ai/errors/validation"
-        assert data["title"] == "Validation"
+        assert data["type"] == "https://api.dilcore.ai/errors/validation-error"
+        assert data["title"] == "Validation Error"
         assert data["status"] == 422
         assert "invalid prompt content" in data["detail"].lower()
         assert data["instance"] == "/api/v1/generate"
@@ -194,7 +194,7 @@ class TestProblemDetailsResponses:
         assert response.headers["content-type"] == "application/problem+json"
 
         data = response.json()
-        assert data["type"] == "https://api.dilcore.ai/errors/validation"
+        assert data["type"] == "https://api.dilcore.ai/errors/validation-error"
         assert data["status"] == 422
 
     def test_error_endpoint_llm(self) -> None:

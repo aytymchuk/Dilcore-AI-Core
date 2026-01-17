@@ -84,9 +84,9 @@ The API will be available at `http://localhost:8000`
 
 Once the server is running, you can access:
 
-- **Interactive API docs (Swagger UI)**: http://localhost:8000/docs
-- **Alternative API docs (ReDoc)**: http://localhost:8000/redoc
-- **OpenAPI schema**: http://localhost:8000/openapi.json
+- **Interactive API docs (Swagger UI)**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **Alternative API docs (ReDoc)**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **OpenAPI schema**: [http://localhost:8000/openapi.json](http://localhost:8000/openapi.json)
 
 ## API Endpoints
 
@@ -189,7 +189,7 @@ start htmlcov/index.html  # On Windows
 
 ## Project Structure
 
-```
+```text
 Dilcore-AI-Core/
 ├── src/
 │   └── ai_agent/
@@ -247,7 +247,7 @@ app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 All error responses include the correct `Content-Type` header:
 
-```
+```http
 Content-Type: application/problem+json
 ```
 

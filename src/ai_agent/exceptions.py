@@ -100,8 +100,14 @@ class ValidationError(AIAgentException):
         super().__init__(
             message=message,
             status_code=422,
+            error_type="https://api.dilcore.ai/errors/validation-error",
             errors=errors,
         )
+
+    @property
+    def title(self) -> str:
+        """Get the error title."""
+        return "Validation Error"
 
 
 class TemplateGenerationError(AIAgentException):

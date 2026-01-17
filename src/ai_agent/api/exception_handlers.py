@@ -132,18 +132,23 @@ def validation_exception_handler(
     Returns:
         JSONResponse with Problem Details format
     """
+    validation_errors = exc.errors()
+    # Log error count without exposing user input
     logger.warning(
-        "Validation error: %s",
-        exc.errors(),
+        "Validation error occurred",
         extra={
             "path": request.url.path,
-            "error_count": len(exc.errors()),
+            "error_count": len(validation_errors),
+            "field_names": [
+                ".".join(str(loc) for loc in error["loc"] if loc != "body")
+                for error in validation_errors
+            ],
         },
     )
 
     # Format validation errors into a more user-friendly structure
     errors: dict[str, Any] = {}
-    for error in exc.errors():
+    for error in validation_errors:
         field_path = ".".join(str(loc) for loc in error["loc"] if loc != "body")
         if field_path not in errors:
             errors[field_path] = []
@@ -177,18 +182,22 @@ def pydantic_validation_exception_handler(
     Returns:
         JSONResponse with Problem Details format
     """
+    validation_errors = exc.errors()
+    # Log error count without exposing user input
     logger.warning(
-        "Pydantic validation error: %s",
-        exc.errors(),
+        "Pydantic validation error occurred",
         extra={
             "path": request.url.path,
-            "error_count": len(exc.errors()),
+            "error_count": len(validation_errors),
+            "field_names": [
+                ".".join(str(loc) for loc in error["loc"]) for error in validation_errors
+            ],
         },
     )
 
     # Format validation errors
     errors: dict[str, Any] = {}
-    for error in exc.errors():
+    for error in validation_errors:
         field_path = ".".join(str(loc) for loc in error["loc"])
         if field_path not in errors:
             errors[field_path] = []

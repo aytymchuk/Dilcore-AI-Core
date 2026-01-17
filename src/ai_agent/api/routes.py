@@ -4,6 +4,7 @@ This module defines the API endpoints and demonstrates
 problem details error handling.
 """
 
+import hashlib
 import logging
 from typing import Any
 
@@ -86,7 +87,12 @@ async def generate_template(request: GenerateRequest) -> GenerateResponse:
         LLMAPIError: If LLM API call fails
         ParsingError: If response parsing fails
     """
-    logger.info("Generating template for prompt: %s", request.prompt[:50])
+    prompt_hash = hashlib.sha256(request.prompt.encode()).hexdigest()
+    logger.info(
+        "Generating template for prompt (len=%d, sha256=%s)",
+        len(request.prompt),
+        prompt_hash,
+    )
 
     # Simulate validation error for demonstration
     if "error" in request.prompt.lower():
