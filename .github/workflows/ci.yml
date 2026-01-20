@@ -38,12 +38,12 @@ jobs:
 
     - name: 🔍 Lint with Ruff
       run: |
-        ruff check src tests
+        uv run ruff check src tests
 
     - name: ✅ Test with Pytest
       run: |
         mkdir -p TestResults
-        pytest \
+        uv run pytest \
           --verbosity=normal \
           --cov=src \
           --cov-report=xml:TestResults/coverage.xml \
