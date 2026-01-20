@@ -15,6 +15,7 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 
 - Python 3.12+
 - OpenRouter API key ([get one here](https://openrouter.ai/keys))
+- `uv` installed ([get it here](https://docs.astral.sh/uv/getting-started/installation/))
 
 ### Installation
 
@@ -23,15 +24,9 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
    cd /path/to/AI\ POC
    ```
 
-2. **Create virtual environment**
+2. **Setup environment and install dependencies**
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -e ".[dev]"
+   uv sync --all-groups
    ```
 
 4. **Configure environment**
@@ -42,7 +37,7 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 
 5. **Run the server**
    ```bash
-   uvicorn src.ai_agent.main:app --reload
+   uv run uvicorn src.ai_agent.main:app --reload
    ```
 
 6. **Open API docs**
@@ -126,26 +121,26 @@ AI POC/
 
 ```bash
 # Start with auto-reload
-uvicorn src.ai_agent.main:app --reload
+uv run uvicorn src.ai_agent.main:app --reload
 
 # Start on specific port
-uvicorn src.ai_agent.main:app --reload --port 8080
+uv run uvicorn src.ai_agent.main:app --reload --port 8080
 
 # Start with debug logging
-LOG_LEVEL=DEBUG uvicorn src.ai_agent.main:app --reload
+LOG_LEVEL=DEBUG uv run uvicorn src.ai_agent.main:app --reload
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
-# Run with coverage
-pytest tests/ -v --cov=src/ai_agent
+# Run with coverage (generates TestResults/coverage.xml)
+uv run pytest tests/ -v --cov=src/ai_agent --cov-report=xml
 
 # Run specific test file
-pytest tests/test_streaming.py -v
+uv run pytest tests/test_streaming.py -v
 ```
 
 ### API Testing

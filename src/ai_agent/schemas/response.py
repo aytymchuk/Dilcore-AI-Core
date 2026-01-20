@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
 
@@ -50,7 +50,7 @@ class TemplateMetadata(BaseModel):
 
     version: str = Field(default="1.0.0", description="Template version")
     created_at: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=lambda: datetime.now(timezone.utc),
         description="Creation timestamp",
     )
     author: str = Field(default="AI Agent", description="Template author")
