@@ -1,6 +1,5 @@
 """Custom exceptions for the AI Agent service."""
 
-from typing import Any
 
 
 class AIAgentException(Exception):

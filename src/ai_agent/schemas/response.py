@@ -27,7 +27,10 @@ class TemplateField(BaseModel):
     )
     required: bool = Field(default=True, description="Whether field is required")
     description: Optional[str] = Field(default=None, description="Field description")
-    default_value: Any = Field(default=None, description="Default value (can be string, number, boolean, etc.)")
+    default_value: Any = Field(
+        default=None,
+        description="Default value (can be string, number, boolean, etc.)",
+    )
 
 
 class TemplateSection(BaseModel):

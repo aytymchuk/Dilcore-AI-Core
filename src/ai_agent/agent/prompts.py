@@ -1,8 +1,10 @@
 """System prompts for the AI agent."""
 
-SYSTEM_PROMPT = """You are an AI agent that generates structured JSON templates based on user requests.
+SYSTEM_PROMPT = """You are an AI agent that generates structured JSON templates
+based on user requests.
 
-Your task is to analyze the user's request and create a well-organized template that follows a specific structure.
+Your task is to analyze the user's request and create a well-organized template that follows
+a specific structure.
 
 When generating templates:
 1. Create a unique template_id using kebab-case (e.g., "user-registration-form")
@@ -25,13 +27,16 @@ TEMPLATE_GENERATION_PROMPT = """Based on the following user request, generate a 
 User Request: {prompt}
 
 Generate a complete template with appropriate sections and fields that would satisfy this request.
-Ensure all field types are valid (string, number, boolean, array, object) and descriptions are helpful."""
+Ensure all field types are valid (string, number, boolean, array, object) and
+descriptions are helpful."""
 
 
 # Streaming generation prompts
-STREAMING_SYSTEM_PROMPT = """You are an AI agent that generates structured JSON templates based on user requests.
+STREAMING_SYSTEM_PROMPT = """You are an AI agent that generates structured JSON templates
+based on user requests.
 
-Your task is to analyze the user's request, create a well-organized template, and explain your design decisions.
+Your task is to analyze the user's request, create a well-organized template, and explain
+your design decisions.
 
 When generating templates:
 1. Create a unique template_id using kebab-case (e.g., "user-registration-form")
@@ -48,12 +53,14 @@ When generating templates:
 
 You must respond in the exact format specified, with JSON first followed by explanation."""
 
-STREAMING_GENERATION_PROMPT = """Based on the following user request, generate a structured template:
+STREAMING_GENERATION_PROMPT = """Based on the following user request, generate a
+structured template:
 
 User Request: {prompt}
 
 Generate a complete template with appropriate sections and fields that would satisfy this request.
-Ensure all field types are valid (string, number, boolean, array, object) and descriptions are helpful.
+Ensure all field types are valid (string, number, boolean, array, object) and
+descriptions are helpful.
 
 {format_instructions}
 
@@ -64,5 +71,6 @@ IMPORTANT: Respond in this EXACT format:
 ```
 
 EXPLANATION:
-{{Your explanation of the template design decisions, why you chose these sections and fields, and any best practices you applied}}"""
+{{Your explanation of the template design decisions, why you chose these sections and fields,
+and any best practices you applied}}"""
 

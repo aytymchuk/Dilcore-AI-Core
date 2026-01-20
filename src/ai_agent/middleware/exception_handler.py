@@ -1,12 +1,10 @@
 """Global exception handling middleware for Problem Details (RFC 7807)."""
 
 import logging
-from typing import Callable
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from ..exceptions import AIAgentException

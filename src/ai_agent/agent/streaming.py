@@ -5,7 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from typing import AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Optional
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -15,8 +16,6 @@ from openai import APIConnectionError, APIError, RateLimitError
 
 from ai_agent.config import Settings
 from ai_agent.exceptions import (
-    LLMProviderError,
-    TemplateGenerationError,
     TemplateParsingError,
 )
 from ai_agent.schemas.response import TemplateResponse

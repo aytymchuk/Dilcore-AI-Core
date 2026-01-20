@@ -2,8 +2,7 @@
 
 import json
 import os
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -113,7 +112,11 @@ class TestStreamingTemplateAgent:
         async def mock_astream(*args, **kwargs):
             """Mock async generator for astream."""
             mock_chunk = MagicMock()
-            mock_chunk.content = '```json\n{"template_id": "test-123", "template_name": "Test", "description": "A test"}\n```\n\nEXPLANATION:\nThis is a test template.'
+            mock_chunk.content = (
+                '```json\n{"template_id": "test-123", "template_name": '
+                '"Test", "description": "A test"}\n```\n\n'
+                "EXPLANATION:\nThis is a test template."
+            )
             mock_chunk.response_metadata = {}
             mock_chunk.additional_kwargs = {}
             yield mock_chunk

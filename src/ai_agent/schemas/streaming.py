@@ -74,7 +74,10 @@ class StreamingTemplateResponse(BaseModel):
                         },
                         "sections": [],
                     },
-                    "explanation": "This template uses a simple structure with essential fields for user registration.",
+                    "explanation": (
+                        "This template uses a simple structure with "
+                        "essential fields for user registration."
+                    ),
                 }
             ]
         }

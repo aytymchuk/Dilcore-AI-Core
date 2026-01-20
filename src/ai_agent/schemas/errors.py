@@ -1,6 +1,5 @@
 """Problem Details (RFC 7807) error response schemas."""
 
-from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
