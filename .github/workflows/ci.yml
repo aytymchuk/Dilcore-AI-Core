@@ -44,7 +44,7 @@ jobs:
       run: |
         mkdir -p TestResults
         uv run pytest \
-          --verbosity=normal \
+          -v \
           --cov=src \
           --cov-report=xml:TestResults/coverage.xml \
           --junitxml=TestResults/junit.xml
