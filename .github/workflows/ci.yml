@@ -30,11 +30,11 @@ jobs:
     - name: 🐍 Setup Python
       uses: actions/setup-python@v5
       with:
-        python-version-file: "pyproject.toml"
+        python-version: "3.12"
 
     - name: 📦 Install dependencies
       run: |
-        uv sync --all-groups
+        uv sync --all-extras --dev
 
     - name: 🔍 Lint with Ruff
       run: |
