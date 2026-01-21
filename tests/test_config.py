@@ -3,8 +3,6 @@
 import os
 from unittest.mock import patch
 
-import pytest
-
 from ai_agent.config.settings import Settings, get_settings
 
 

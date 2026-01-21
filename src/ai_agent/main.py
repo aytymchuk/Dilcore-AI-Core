@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -162,7 +163,10 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        description="AI Agent for generating structured JSON templates using LangChain and OpenRouter",
+        description=(
+            "AI Agent for generating structured JSON templates "
+            "using LangChain and OpenRouter"
+        ),
         version="0.1.0",
         docs_url=None,  # Disable default Swagger UI
         redoc_url=None,  # Disable ReDoc

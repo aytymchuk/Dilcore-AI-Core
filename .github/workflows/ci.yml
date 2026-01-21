@@ -1,0 +1,87 @@
+name: 🚀 CI AI Agent
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  checks: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  build-and-test:
+    name: 🧪 Build & Test
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Checkout
+      uses: actions/checkout@v4
+
+    - name: 📦 Setup uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+        version: "latest"
+
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version-file: "pyproject.toml"
+
+    - name: 📦 Install dependencies
+      run: |
+        uv sync --all-extras --dev
+
+    - name: 🔍 Lint with Ruff
+      run: |
+        uv run --with ruff ruff check src tests
+
+    - name: ✅ Test with Pytest
+      run: |
+        mkdir -p TestResults
+        uv run --with pytest pytest \
+          -v \
+          --cov=src \
+          --cov-report=xml:TestResults/coverage.xml \
+          --junitxml=TestResults/junit.xml
+
+    - name: 📊 Generate Coverage Report
+      uses: danielpalme/ReportGenerator-GitHub-Action@v5.5.1
+      if: always()
+      with:
+        reports: 'TestResults/coverage.xml'
+        targetdir: 'coveragereport'
+        reporttypes: 'HtmlInline;MarkdownSummaryGithub'
+
+    - name: 📝 Add Coverage Summary
+      if: always()
+      run: |
+        if [ -f coveragereport/SummaryGithub.md ]; then
+          cat coveragereport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+        else
+          echo "⚠️ No coverage summary found." >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: 📤 Upload Coverage Report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: coveragereport
+
+    - name: 📋 Publish Test Results
+      uses: EnricoMi/publish-unit-test-result-action@v2
+      if: always()
+      with:
+        files: 'TestResults/junit.xml'
+
+    - name: 📤 Upload Test Results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: TestResults
