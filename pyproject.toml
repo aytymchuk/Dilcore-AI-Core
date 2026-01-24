@@ -11,7 +11,7 @@ authors = [
 
 dependencies = [
     "fastapi[standard]>=0.115.0",
-    "scalar-fastapi==1.6.0",
+    "scalar-fastapi==1.6.1",
     "langchain>=0.3.0",
     "langchain-openai>=0.3.0",
     "pydantic-settings>=2.0.0",
