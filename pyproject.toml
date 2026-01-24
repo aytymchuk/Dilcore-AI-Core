@@ -12,8 +12,11 @@ authors = [
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "scalar-fastapi==1.6.1",
+    "sse-starlette>=3.0.0",
     "langchain>=0.3.0",
     "langchain-openai>=0.3.0",
+    "langchain-community>=0.3.0",
+    "faiss-cpu>=1.8.0",
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "uvicorn[standard]>=0.30.0",

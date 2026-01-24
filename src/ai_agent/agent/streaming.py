@@ -6,18 +6,14 @@ import json
 import logging
 import re
 from collections.abc import AsyncGenerator
-from typing import Optional
+from typing import Any, Optional
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
-from langchain_openai import ChatOpenAI
-from openai import APIConnectionError, APIError, RateLimitError
 
 from ai_agent.config import Settings
-from ai_agent.exceptions import (
-    TemplateParsingError,
-)
+from ai_agent.exceptions import TemplateParsingError
 from ai_agent.schemas.response import TemplateResponse
 from ai_agent.schemas.streaming import (
     StreamEvent,
@@ -25,13 +21,20 @@ from ai_agent.schemas.streaming import (
     StreamingTemplateResponse,
 )
 
+from .base import StreamingAgent
 from .prompts import STREAMING_GENERATION_PROMPT, STREAMING_SYSTEM_PROMPT
+from .registry import AgentRegistry
 
 logger = logging.getLogger(__name__)
 
 
-class StreamingTemplateAgent:
-    """AI Agent for streaming template generation with thinking mode support."""
+@AgentRegistry.register("module-builder-streaming")
+class StreamingModuleBuilderAgent(StreamingAgent):
+    """AI Agent for streaming template generation with thinking mode support.
+
+    This is the streaming version of ModuleBuilderAgent, useful for
+    real-time feedback during template generation.
+    """
 
     def __init__(self, settings: Settings) -> None:
         """Initialize the streaming agent with OpenRouter configuration.
@@ -39,7 +42,10 @@ class StreamingTemplateAgent:
         Args:
             settings: Application settings containing OpenRouter config.
         """
-        self._settings = settings
+        super().__init__(settings)
+        # Override LLM with streaming enabled
+        from langchain_openai import ChatOpenAI
+
         self._llm = ChatOpenAI(
             api_key=settings.openrouter.api_key.get_secret_value(),
             base_url=settings.openrouter.base_url,
@@ -49,9 +55,50 @@ class StreamingTemplateAgent:
         )
         self._parser = PydanticOutputParser(pydantic_object=TemplateResponse)
 
-    async def generate_template_stream(
-        self, prompt: str
-    ) -> AsyncGenerator[StreamEvent, None]:
+    @property
+    def agent_type(self) -> str:
+        """Return the agent type identifier."""
+        return "module-builder"
+
+    async def process(self, request: Any) -> StreamingTemplateResponse:
+        """Process a generation request (non-streaming).
+
+        Args:
+            request: The request containing the prompt.
+
+        Returns:
+            StreamingTemplateResponse with template and explanation.
+        """
+        prompt = request.prompt if hasattr(request, "prompt") else str(request)
+
+        # Collect all stream events and return final result
+        final_response = None
+        async for event in self.generate_template_stream(prompt):
+            if event.event_type == StreamEventType.TEMPLATE:
+                final_response = StreamingTemplateResponse(
+                    template=TemplateResponse.model_validate(event.data),
+                    explanation="Generated via streaming.",
+                )
+
+        if final_response is None:
+            raise TemplateParsingError("Stream completed without generating a template")
+
+        return final_response
+
+    async def process_stream(self, request: Any) -> AsyncGenerator[StreamEvent, None]:
+        """Process a request and stream the response.
+
+        Args:
+            request: The request containing the prompt.
+
+        Yields:
+            StreamEvent objects.
+        """
+        prompt = request.prompt if hasattr(request, "prompt") else str(request)
+        async for event in self.generate_template_stream(prompt):
+            yield event
+
+    async def generate_template_stream(self, prompt: str) -> AsyncGenerator[StreamEvent, None]:
         """Stream template generation with thinking mode support.
 
         This method streams the AI generation process, supporting models with
@@ -80,6 +127,8 @@ class StreamingTemplateAgent:
         current_mode = StreamEventType.CONTENT  # Default to content mode
 
         try:
+            from openai import APIConnectionError, APIError, RateLimitError
+
             async for chunk in self._llm.astream(messages):
                 chunk_content = chunk.content if hasattr(chunk, "content") else ""
 
@@ -87,7 +136,6 @@ class StreamingTemplateAgent:
                     continue
 
                 # Check for thinking mode in chunk metadata (model-specific)
-                # Different models may indicate thinking differently
                 is_thinking = self._is_thinking_chunk(chunk)
 
                 if is_thinking:
@@ -201,9 +249,7 @@ class StreamingTemplateAgent:
                 template = self._parser.parse(content)
 
             # Extract explanation
-            explanation_match = re.search(
-                r"EXPLANATION:\s*([\s\S]*?)(?:\Z|```)", content, re.IGNORECASE
-            )
+            explanation_match = re.search(r"EXPLANATION:\s*([\s\S]*?)(?:\Z|```)", content, re.IGNORECASE)
             explanation = (
                 explanation_match.group(1).strip()
                 if explanation_match
@@ -217,24 +263,30 @@ class StreamingTemplateAgent:
 
         except Exception as e:
             logger.exception("Failed to parse streaming response")
-            raise TemplateParsingError(
-                "Unable to parse the generated template response"
-            ) from e
+            raise TemplateParsingError("Unable to parse the generated template response") from e
 
 
-_streaming_agent_instance: Optional[StreamingTemplateAgent] = None
+# Backward compatibility aliases
+StreamingTemplateAgent = StreamingModuleBuilderAgent
 
 
-def create_streaming_template_agent(settings: Settings) -> StreamingTemplateAgent:
-    """Create or return the singleton StreamingTemplateAgent instance.
+_streaming_agent_instance: Optional[StreamingModuleBuilderAgent] = None
+
+
+def create_streaming_template_agent(settings: Settings) -> StreamingModuleBuilderAgent:
+    """Create or return the singleton StreamingModuleBuilderAgent instance.
 
     Args:
         settings: Application settings.
 
     Returns:
-        The StreamingTemplateAgent instance.
+        The StreamingModuleBuilderAgent instance.
+
+    Note:
+        This function is maintained for backward compatibility.
+        Prefer using AgentRegistry.get_agent("module-builder-streaming", settings) instead.
     """
     global _streaming_agent_instance
     if _streaming_agent_instance is None:
-        _streaming_agent_instance = StreamingTemplateAgent(settings)
+        _streaming_agent_instance = StreamingModuleBuilderAgent(settings)
     return _streaming_agent_instance

@@ -44,4 +44,3 @@ def get_streaming_agent(settings: SettingsDep) -> StreamingTemplateAgent:
 
 
 StreamingAgentDep = Annotated[StreamingTemplateAgent, Depends(get_streaming_agent)]
-

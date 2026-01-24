@@ -2,7 +2,7 @@
 
 import json
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -86,8 +86,8 @@ class TestStreamingTemplateResponse:
         assert response.explanation == "This template provides basic structure."
 
 
-class TestStreamingTemplateAgent:
-    """Test cases for StreamingTemplateAgent class."""
+class TestStreamingModuleBuilderAgent:
+    """Test cases for StreamingModuleBuilderAgent class (formerly StreamingTemplateAgent)."""
 
     @pytest.fixture
     def mock_settings(self):
@@ -106,9 +106,7 @@ class TestStreamingTemplateAgent:
     @pytest.mark.asyncio
     async def test_generate_template_stream_yields_events(self, mock_settings) -> None:
         """generate_template_stream should yield StreamEvent objects."""
-        # Mock the ChatOpenAI astream method
-        mock_llm = MagicMock()
-
+        
         async def mock_astream(*args, **kwargs):
             """Mock async generator for astream."""
             mock_chunk = MagicMock()
@@ -121,12 +119,13 @@ class TestStreamingTemplateAgent:
             mock_chunk.additional_kwargs = {}
             yield mock_chunk
 
+        mock_llm = MagicMock()
         mock_llm.astream = mock_astream
+        
+        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
+            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
 
-        with patch("ai_agent.agent.streaming.ChatOpenAI", return_value=mock_llm):
-            from ai_agent.agent.streaming import StreamingTemplateAgent
-
-            agent = StreamingTemplateAgent(mock_settings)
+            agent = StreamingModuleBuilderAgent(mock_settings)
             events = []
 
             async for event in agent.generate_template_stream("Create a test template"):
@@ -142,19 +141,19 @@ class TestStreamingTemplateAgent:
     @pytest.mark.asyncio
     async def test_generate_template_stream_handles_error(self, mock_settings) -> None:
         """generate_template_stream should yield error event on failure."""
-        mock_llm = MagicMock()
-
+        
         async def mock_astream_error(*args, **kwargs):
             """Mock async generator that raises error."""
             raise ValueError("API Error")
             yield  # Make it a generator
 
+        mock_llm = MagicMock()
         mock_llm.astream = mock_astream_error
+        
+        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
+            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
 
-        with patch("ai_agent.agent.streaming.ChatOpenAI", return_value=mock_llm):
-            from ai_agent.agent.streaming import StreamingTemplateAgent
-
-            agent = StreamingTemplateAgent(mock_settings)
+            agent = StreamingModuleBuilderAgent(mock_settings)
             events = []
 
             async for event in agent.generate_template_stream("Create something"):
@@ -171,10 +170,12 @@ class TestStreamingTemplateAgent:
         self, mock_settings
     ) -> None:
         """_parse_response should extract template JSON and explanation."""
-        with patch("ai_agent.agent.streaming.ChatOpenAI"):
-            from ai_agent.agent.streaming import StreamingTemplateAgent
+        mock_llm = MagicMock()
+        
+        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
+            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
 
-            agent = StreamingTemplateAgent(mock_settings)
+            agent = StreamingModuleBuilderAgent(mock_settings)
 
             content = """Here is the template:
 

@@ -73,4 +73,3 @@ IMPORTANT: Respond in this EXACT format:
 EXPLANATION:
 {{Your explanation of the template design decisions, why you chose these sections and fields,
 and any best practices you applied}}"""
-

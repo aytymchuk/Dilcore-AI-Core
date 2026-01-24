@@ -36,11 +36,7 @@ Stream the template generation process using Server-Sent Events (SSE).
     responses={
         200: {
             "description": "Successfully streaming template generation",
-            "content": {
-                "text/event-stream": {
-                    "example": "data: {\"event_type\":\"content\",\"data\":\"...\"}\n\n"
-                }
-            },
+            "content": {"text/event-stream": {"example": 'data: {"event_type":"content","data":"..."}\n\n'}},
         },
         422: {
             "description": "Validation error",

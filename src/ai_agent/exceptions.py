@@ -1,7 +1,6 @@
 """Custom exceptions for the AI Agent service."""
 
 
-
 class AIAgentException(Exception):
     """Base exception for all AI Agent errors.
 

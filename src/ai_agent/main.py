@@ -12,7 +12,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from scalar_fastapi import get_scalar_api_reference
 
-from ai_agent.api import health_router, router, streaming_router
+from ai_agent.api import (
+    health_router,
+    module_builder_router,
+    persona_router,
+    router,
+    streaming_router,
+)
 from ai_agent.config import get_settings
 from ai_agent.middleware import setup_exception_handlers
 
@@ -163,10 +169,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(
         title=settings.app_name,
-        description=(
-            "AI Agent for generating structured JSON templates "
-            "using LangChain and OpenRouter"
-        ),
+        description=("AI Agent for generating structured JSON templates using LangChain and OpenRouter"),
         version="0.1.0",
         docs_url=None,  # Disable default Swagger UI
         redoc_url=None,  # Disable ReDoc
@@ -186,9 +189,14 @@ def create_app() -> FastAPI:
     setup_exception_handlers(app)
 
     # Include API routes
+    # Legacy routes (for backward compatibility)
     app.include_router(health_router)
-    app.include_router(router)
-    app.include_router(streaming_router)
+    app.include_router(router)  # Old /api/v1/metadata routes
+    app.include_router(streaming_router)  # Old streaming route
+
+    # New multi-agent routes
+    app.include_router(module_builder_router)  # /api/v1/module-builder
+    app.include_router(persona_router)  # /api/v1/persona
 
     # Configure custom OpenAPI schema with enhanced error documentation
     app.openapi = lambda: custom_openapi(app)
