@@ -36,14 +36,22 @@ jobs:
       run: |
         uv sync --all-extras --dev
 
+    - name: 🎨 Check Formatting
+      run: |
+        uv run ruff format --check src tests
+
     - name: 🔍 Lint with Ruff
       run: |
-        uv run --with ruff ruff check src tests
+        uv run poe lint
+
+    - name: 📝 Typecheck with Mypy
+      run: |
+        uv run poe typecheck
 
     - name: ✅ Test with Pytest
       run: |
         mkdir -p TestResults
-        uv run --with pytest pytest \
+        uv run pytest \
           -v \
           --cov=src \
           --cov-report=xml:TestResults/coverage.xml \

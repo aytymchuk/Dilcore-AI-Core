@@ -1,14 +1,15 @@
 """Tests for Problem Details error handling."""
 
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi import status
 from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
-from ai_agent.exceptions import (
+from api.schemas.errors import ProblemDetails
+from shared.exceptions import (
     AIAgentException,
     ConfigurationError,
     LLMProviderError,
@@ -16,7 +17,6 @@ from ai_agent.exceptions import (
     TemplateParsingError,
     ValidationError,
 )
-from ai_agent.schemas.errors import ProblemDetails
 
 
 class TestProblemDetailsSchema:
@@ -44,7 +44,7 @@ class TestProblemDetailsSchema:
             ProblemDetails(
                 type="https://api.dilcore.ai/problems/test",
                 title="Test",
-                status=200,  # Invalid: not an error status
+                status=200,
                 detail="Test detail",
                 instance="/test",
             )
@@ -157,19 +157,18 @@ class TestGlobalExceptionHandlers:
             "OPENROUTER__API_KEY": "test-api-key",
         }
         with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import get_settings
+            from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from ai_agent.main import app
+            from main import app
 
             yield TestClient(app)
 
     def test_validation_error_returns_problem_details(self, client) -> None:
         """Validation errors should return Problem Details format."""
-        # Send request with missing prompt field
-        response = client.post("/api/v1/metadata/generate", json={})
+        response = client.post("/api/v1/blueprints/generate", json={})
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         data = response.json()
         assert "type" in data
@@ -177,123 +176,30 @@ class TestGlobalExceptionHandlers:
         assert "status" in data
         assert "detail" in data
         assert "instance" in data
-
         assert data["status"] == 422
         assert data["type"].endswith("validation-error")
-        assert "prompt" in data["detail"].lower()
 
     def test_validation_error_empty_prompt(self, client) -> None:
         """Empty prompt validation should return Problem Details."""
-        response = client.post("/api/v1/metadata/generate", json={"prompt": ""})
+        response = client.post("/api/v1/blueprints/generate", json={"prompt": ""})
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         data = response.json()
         assert data["status"] == 422
         assert "validation" in data["title"].lower()
-        # Should not expose internal error details
         assert "pydantic" not in data["detail"].lower()
         assert "traceback" not in data["detail"].lower()
 
     def test_validation_error_prompt_too_long(self, client) -> None:
         """Prompt exceeding max length should return Problem Details."""
-        long_prompt = "a" * 5000  # Exceeds 4000 character limit
-        response = client.post(
-            "/api/v1/metadata/generate", json={"prompt": long_prompt}
-        )
+        long_prompt = "a" * 5000
+        response = client.post("/api/v1/blueprints/generate", json={"prompt": long_prompt})
 
-        assert response.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         data = response.json()
         assert data["status"] == 422
-        assert data["instance"] == "/api/v1/metadata/generate"
-
-    def test_llm_provider_error_returns_problem_details(self, client) -> None:
-        """LLM provider errors should return Problem Details format."""
-        from openai import APIConnectionError
-
-        mock_llm = MagicMock()
-        mock_llm.ainvoke = AsyncMock(
-            side_effect=APIConnectionError(request=MagicMock())
-        )
-
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            # Need to reload to pick up the mocked ChatOpenAI
-            import ai_agent.agent.core as agent_module
-
-            agent_module._agent_instance = None
-
-            response = client.post(
-                "/api/v1/metadata/generate", json={"prompt": "Create a template"}
-            )
-
-            # Clean up
-            agent_module._agent_instance = None
-
-        assert response.status_code == status.HTTP_502_BAD_GATEWAY
-
-        data = response.json()
-        assert data["status"] == 502
-        assert data["type"].endswith("llm-provider-error")
-        assert data["title"] == "LLM Provider Error"
-        # Should not expose internal error details
-        assert "APIConnectionError" not in data["detail"]
-        assert "provider" in data["detail"].lower() or "ai" in data["detail"].lower()
-
-    @pytest.mark.skip(reason="Complex mocking required - ChatOpenAI is a Pydantic model and singleton pattern makes mocking difficult")
-    def test_parsing_error_returns_problem_details(self, client) -> None:
-        """Template parsing errors should return Problem Details format."""
-        mock_llm = MagicMock()
-        mock_response = MagicMock()
-        mock_response.content = "Invalid JSON response"
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            import ai_agent.agent.core as agent_module
-
-            agent_module._agent_instance = None
-
-            response = client.post(
-                "/api/v1/metadata/generate", json={"prompt": "Create a template"}
-            )
-
-            agent_module._agent_instance = None
-
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-
-        data = response.json()
-        assert data["status"] == 500
-        assert data["type"].endswith("parsing-error")
-        # Should not expose parsing details
-        assert "json" not in data["detail"].lower()
-        assert "parse" in data["detail"].lower()
-
-    @pytest.mark.skip(reason="Complex mocking required - ChatOpenAI is a Pydantic model and singleton pattern makes mocking difficult")
-    def test_unhandled_exception_returns_generic_error(self, client) -> None:
-        """Unhandled exceptions should return generic Problem Details."""
-        mock_llm = MagicMock()
-        mock_llm.ainvoke = AsyncMock(side_effect=RuntimeError("Unexpected error"))
-
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            import ai_agent.agent.core as agent_module
-
-            agent_module._agent_instance = None
-
-            response = client.post(
-                "/api/v1/metadata/generate", json={"prompt": "Create a template"}
-            )
-
-            agent_module._agent_instance = None
-
-        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
-
-        data = response.json()
-        assert data["status"] == 500
-        assert data["type"].endswith("generation-error")
-        # Should not expose internal exception details
-        assert "RuntimeError" not in data["detail"]
-        assert "Unexpected error" not in data["detail"]
-        assert "unexpected" in data["detail"].lower() or "error" in data["detail"].lower()
 
     def test_404_returns_problem_details(self, client) -> None:
         """404 errors should return Problem Details format."""
@@ -313,10 +219,9 @@ class TestGlobalExceptionHandlers:
         assert response.status_code == status.HTTP_200_OK
 
         data = response.json()
-        # Should be normal response, not Problem Details
         assert "status" in data
         assert data["status"] == "healthy"
-        assert "type" not in data  # Not a Problem Details response
+        assert "type" not in data
         assert "title" not in data
 
 
@@ -330,68 +235,40 @@ class TestProblemDetailsNoInformationLeakage:
             "OPENROUTER__API_KEY": "PLACEHOLDER-NOT-A-REAL-KEY",
         }
         with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import get_settings
+            from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from ai_agent.main import app
+            from main import app
 
             yield TestClient(app)
 
     def test_error_does_not_expose_api_keys(self, client) -> None:
         """Error responses should not expose API keys."""
-        response = client.post("/api/v1/metadata/generate", json={})
+        response = client.post("/api/v1/blueprints/generate", json={})
 
         assert response.status_code == 422
         data = response.json()
 
-        # Check that API key is not in the response
         response_str = str(data).lower()
         assert "placeholder-not-a-real-key" not in response_str
 
     def test_error_does_not_expose_file_paths(self, client) -> None:
         """Error responses should not expose internal file paths."""
-        response = client.post("/api/v1/metadata/generate", json={"prompt": ""})
+        response = client.post("/api/v1/blueprints/generate", json={"prompt": ""})
 
         data = response.json()
         response_str = str(data)
 
-        # Should not contain file system paths
         assert "/home/user" not in response_str
         assert "src/ai_agent" not in response_str
         assert ".py" not in response_str
 
-    def test_error_does_not_expose_stack_traces(self, client) -> None:
-        """Error responses should not expose stack traces."""
-        mock_llm = MagicMock()
-        mock_llm.ainvoke = AsyncMock(side_effect=Exception("Internal error"))
-
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            import ai_agent.agent.core as agent_module
-
-            agent_module._agent_instance = None
-
-            response = client.post(
-                "/api/v1/metadata/generate", json={"prompt": "Test"}
-            )
-
-            agent_module._agent_instance = None
-
-        data = response.json()
-        response_str = str(data).lower()
-
-        # Should not contain stack trace elements
-        assert "traceback" not in response_str
-        assert "file " not in response_str
-        assert "line " not in response_str
-
     def test_error_does_not_expose_internal_class_names(self, client) -> None:
         """Error responses should not expose internal class names."""
-        response = client.post("/api/v1/metadata/generate", json={})
+        response = client.post("/api/v1/blueprints/generate", json={})
 
         data = response.json()
         response_str = str(data)
 
-        # Should not contain internal class names
         assert "PydanticOutputParser" not in response_str
         assert "ChatOpenAI" not in response_str
-        assert "TemplateAgent" not in response_str

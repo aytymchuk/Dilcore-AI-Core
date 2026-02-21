@@ -11,7 +11,7 @@ from fastapi.testclient import TestClient
 @pytest.fixture(scope="session", autouse=True)
 def mock_env_vars() -> Generator[None, None, None]:
     """Mock environment variables for testing.
-    
+
     This fixture ensures tests don't depend on the .env file,
     making them reliable in CI/CD environments like GitHub Actions.
     """
@@ -23,19 +23,21 @@ def mock_env_vars() -> Generator[None, None, None]:
         "APP_DEBUG": "true",
         "LOG_LEVEL": "DEBUG",
     }
-    
+
     # Patch Settings to disable .env file loading
-    from ai_agent.config.settings import Settings
+    from shared.config.settings import Settings
+
     original_model_config = Settings.model_config.copy()
     Settings.model_config["env_file"] = None
-    
+
     with patch.dict(os.environ, env_vars, clear=False):
         # Clear cached settings
-        from ai_agent.config.settings import get_settings
+        from shared.config.settings import get_settings
+
         get_settings.cache_clear()
         yield
         get_settings.cache_clear()
-    
+
     # Restore original config
     Settings.model_config = original_model_config
 
@@ -43,8 +45,7 @@ def mock_env_vars() -> Generator[None, None, None]:
 @pytest.fixture
 def test_client(mock_env_vars: None) -> Generator[TestClient, None, None]:
     """Create a test client for the FastAPI application."""
-    from ai_agent.main import app
-    
+    from main import app
+
     with TestClient(app) as client:
         yield client
-

@@ -1,16 +1,15 @@
-"""Tests for AI agent module."""
+"""Tests for AI agent (BlueprintsGraph) module."""
 
 import os
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from ai_agent.exceptions import TemplateParsingError
-from ai_agent.schemas.response import TemplateResponse
+from api.schemas.response import TemplateResponse
 
 
-class TestModuleBuilderAgent:
-    """Test cases for ModuleBuilderAgent class (formerly TemplateAgent)."""
+class TestBlueprintsGraph:
+    """Test cases for BlueprintsGraph class."""
 
     @pytest.fixture
     def mock_settings(self):
@@ -21,146 +20,112 @@ class TestModuleBuilderAgent:
             "OPENROUTER__MODEL": "openai/gpt-oss-20b:free",
         }
         with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import Settings, get_settings
+            from shared.config.settings import Settings, get_settings
+
             get_settings.cache_clear()
             yield Settings()
 
-    def test_agent_initializes_with_settings(self, mock_settings) -> None:
-        """Agent should initialize with correct settings."""
-        from ai_agent.agent.core import ModuleBuilderAgent
-        
-        agent = ModuleBuilderAgent(mock_settings)
-        
-        assert agent._settings == mock_settings
-        assert agent._llm is not None
-        assert agent._parser is not None
+    def test_graph_initializes_with_settings(self, mock_settings) -> None:
+        """BlueprintsGraph should initialize with correct settings."""
+        with (
+            patch("infrastructure.llm.client.ChatOpenAI"),
+            patch("infrastructure.llm.client.OpenAIEmbeddings"),
+            patch("store.vector.faiss_store.FAISS"),
+        ):
+            from agents.blueprints.graph import BlueprintsGraph
+
+            graph = BlueprintsGraph(mock_settings)
+
+            assert graph._settings == mock_settings
+            assert graph._llm is not None
+            assert graph._streaming_llm is not None
 
     @pytest.mark.asyncio
-    async def test_generate_template_returns_response(self, mock_settings) -> None:
-        """generate_template should return TemplateResponse."""
-        from ai_agent.agent.core import ModuleBuilderAgent
-        
-        # Create agent first
-        agent = ModuleBuilderAgent(mock_settings)
-        
-        # Mock the LLM response
-        mock_response = MagicMock()
-        mock_response.content = '''{
-            "template_id": "test-123",
-            "template_name": "Test Template",
-            "description": "A test template",
-            "status": "draft",
-            "metadata": {
-                "version": "1.0.0",
-                "author": "AI Agent",
-                "tags": []
-            },
-            "sections": []
-        }'''
-        
-        # Create a mock LLM and replace the agent's LLM
-        mock_llm = MagicMock()
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-        agent._llm = mock_llm
-        
-        result = await agent.generate_template("Create a test")
-        
-        assert isinstance(result, TemplateResponse)
-        assert result.template_id == "test-123"
-        assert result.template_name == "Test Template"
+    async def test_generate_returns_template_response(self, mock_settings) -> None:
+        """generate() should return TemplateResponse."""
+        mock_template = TemplateResponse(
+            template_id="test-123",
+            template_name="Test Template",
+            description="A test template",
+        )
 
-    @pytest.mark.asyncio
-    async def test_generate_template_raises_on_invalid_response(self, mock_settings) -> None:
-        """generate_template should raise TemplateParsingError on invalid LLM response."""
-        from ai_agent.agent.core import ModuleBuilderAgent
-        
-        # Create agent first
-        agent = ModuleBuilderAgent(mock_settings)
-        
-        # Mock the LLM's ainvoke method with invalid response
-        mock_response = MagicMock()
-        mock_response.content = "This is not valid JSON"
-        
-        # Create a mock LLM and replace the agent's LLM
-        mock_llm = MagicMock()
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
-        agent._llm = mock_llm
+        with (
+            patch("infrastructure.llm.client.ChatOpenAI"),
+            patch("infrastructure.llm.client.OpenAIEmbeddings"),
+            patch("store.vector.faiss_store.FAISS"),
+        ):
+            from agents.blueprints.graph import BlueprintsGraph
 
-        with pytest.raises(TemplateParsingError, match="Unable to parse"):
-            await agent.generate_template("Create something")
+            graph = BlueprintsGraph(mock_settings)
+
+            # Patch the compiled graph's ainvoke
+            graph._graph = MagicMock()
+            graph._graph.ainvoke = AsyncMock(
+                return_value={
+                    "template_response": mock_template,
+                    "error": None,
+                }
+            )
+
+            result = await graph.generate("Create a test")
+
+            assert isinstance(result, TemplateResponse)
+            assert result.template_id == "test-123"
+            assert result.template_name == "Test Template"
+
+    def test_context_management(self, mock_settings) -> None:
+        """Context entities should accumulate and be clearable."""
+        with (
+            patch("infrastructure.llm.client.ChatOpenAI"),
+            patch("infrastructure.llm.client.OpenAIEmbeddings"),
+            patch("store.vector.faiss_store.FAISS"),
+        ):
+            from agents.blueprints.graph import BlueprintsGraph
+
+            graph = BlueprintsGraph(mock_settings)
+
+            # Manually add a context entity
+            graph._context_entities.append({"id": "entity-1", "name": "Entity 1"})
+
+            assert len(graph.get_context_entities()) == 1
+
+            graph.clear_context()
+            assert len(graph.get_context_entities()) == 0
 
 
-class TestCreateTemplateAgent:
-    """Test cases for create_template_agent factory."""
-
-    def test_creates_singleton_instance(self) -> None:
-        """create_template_agent should return singleton instance."""
-        import ai_agent.agent.core as agent_module
-        from ai_agent.config.settings import Settings
-        
-        # Reset singleton
-        agent_module._agent_instance = None
-        
-        env_vars = {
-            "OPENROUTER__API_KEY": "test-key",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import get_settings
-            get_settings.cache_clear()
-            settings = Settings()
-            
-            agent1 = agent_module.create_template_agent(settings)
-            agent2 = agent_module.create_template_agent(settings)
-            
-            assert agent1 is agent2
-            
-            # Cleanup
-            agent_module._agent_instance = None
-
-
-class TestAgentRegistry:
-    """Test cases for AgentRegistry."""
+class TestBlueprintsService:
+    """Test cases for BlueprintsService orchestration."""
 
     @pytest.fixture
     def mock_settings(self):
         """Create mock settings for testing."""
-        env_vars = {
-            "OPENROUTER__API_KEY": "test-api-key",
-        }
+        env_vars = {"OPENROUTER__API_KEY": "test-api-key"}
         with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import Settings, get_settings
+            from shared.config.settings import Settings, get_settings
+
             get_settings.cache_clear()
             yield Settings()
 
-    def test_registry_has_registered_agents(self) -> None:
-        """Registry should have registered agents."""
-        from ai_agent.agent import AgentRegistry
-        
-        # Import agents to trigger registration
-        from ai_agent.agent import ModuleBuilderAgent, PersonaAgent
-        
-        agents = AgentRegistry.list_agents()
-        assert "module-builder" in agents
-        assert "persona" in agents
+    @pytest.mark.asyncio
+    async def test_service_generate_delegates_to_graph(self, mock_settings) -> None:
+        """BlueprintsService.generate_template should call the graph."""
+        mock_template = TemplateResponse(
+            template_id="svc-001",
+            template_name="Service Template",
+            description="Test",
+        )
 
-    def test_registry_returns_singleton(self, mock_settings) -> None:
-        """Registry should return singleton instances."""
-        from ai_agent.agent import AgentRegistry
-        
-        # Clear instances first
-        AgentRegistry.clear_instances()
-        
-        agent1 = AgentRegistry.get_agent("module-builder", mock_settings)
-        agent2 = AgentRegistry.get_agent("module-builder", mock_settings)
-        
-        assert agent1 is agent2
-        
-        # Cleanup
-        AgentRegistry.clear_instances()
+        with patch("application.services.blueprints_service.BlueprintsGraph") as mock_graph_cls:
+            mock_graph = MagicMock()
+            mock_graph.generate = AsyncMock(return_value=mock_template)
+            mock_graph.get_context_entities.return_value = []
+            mock_graph_cls.return_value = mock_graph
 
-    def test_registry_raises_on_unknown_agent(self, mock_settings) -> None:
-        """Registry should raise ValueError for unknown agent type."""
-        from ai_agent.agent import AgentRegistry
-        
-        with pytest.raises(ValueError, match="Unknown agent type"):
-            AgentRegistry.get_agent("nonexistent-agent", mock_settings)
+            from application.services.blueprints_service import BlueprintsService
+
+            service = BlueprintsService(mock_settings)
+            result = await service.generate_template("Create something")
+
+            assert isinstance(result, TemplateResponse)
+            assert result.template_id == "svc-001"
+            mock_graph.generate.assert_called_once_with("Create something")

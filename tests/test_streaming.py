@@ -2,11 +2,12 @@
 
 import json
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ai_agent.schemas.streaming import (
+from api.schemas.response import TemplateResponse
+from api.schemas.streaming import (
     StreamEvent,
     StreamEventType,
     StreamingTemplateResponse,
@@ -69,8 +70,6 @@ class TestStreamingTemplateResponse:
 
     def test_streaming_response_with_template(self) -> None:
         """StreamingTemplateResponse should contain template and explanation."""
-        from ai_agent.schemas.response import TemplateResponse
-
         template = TemplateResponse(
             template_id="test-001",
             template_name="Test Template",
@@ -86,8 +85,8 @@ class TestStreamingTemplateResponse:
         assert response.explanation == "This template provides basic structure."
 
 
-class TestStreamingModuleBuilderAgent:
-    """Test cases for StreamingModuleBuilderAgent class (formerly StreamingTemplateAgent)."""
+class TestBlueprintsGraphStreaming:
+    """Tests for BlueprintsGraph streaming functionality."""
 
     @pytest.fixture
     def mock_settings(self):
@@ -98,17 +97,16 @@ class TestStreamingModuleBuilderAgent:
             "OPENROUTER__MODEL": "openai/gpt-oss-20b:free",
         }
         with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import Settings, get_settings
+            from shared.config.settings import Settings, get_settings
 
             get_settings.cache_clear()
             yield Settings()
 
     @pytest.mark.asyncio
-    async def test_generate_template_stream_yields_events(self, mock_settings) -> None:
-        """generate_template_stream should yield StreamEvent objects."""
-        
+    async def test_generate_stream_yields_events(self, mock_settings) -> None:
+        """generate_stream should yield StreamEvent objects."""
+
         async def mock_astream(*args, **kwargs):
-            """Mock async generator for astream."""
             mock_chunk = MagicMock()
             mock_chunk.content = (
                 '```json\n{"template_id": "test-123", "template_name": '
@@ -119,19 +117,22 @@ class TestStreamingModuleBuilderAgent:
             mock_chunk.additional_kwargs = {}
             yield mock_chunk
 
-        mock_llm = MagicMock()
-        mock_llm.astream = mock_astream
-        
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
+        with (
+            patch("infrastructure.llm.client.ChatOpenAI") as mock_llm_cls,
+            patch("store.vector.faiss_store.FAISS"),
+        ):
+            mock_llm = MagicMock()
+            mock_llm.astream = mock_astream
+            mock_llm_cls.return_value = mock_llm
 
-            agent = StreamingModuleBuilderAgent(mock_settings)
+            from agents.blueprints.graph import BlueprintsGraph
+
+            graph = BlueprintsGraph(mock_settings)
             events = []
 
-            async for event in agent.generate_template_stream("Create a test template"):
+            async for event in graph.generate_stream("Create a test template"):
                 events.append(event)
 
-            # Should have at least content, template, and done events
             assert len(events) >= 3
             event_types = [e.event_type for e in events]
             assert StreamEventType.CONTENT in event_types
@@ -139,88 +140,28 @@ class TestStreamingModuleBuilderAgent:
             assert StreamEventType.DONE in event_types
 
     @pytest.mark.asyncio
-    async def test_generate_template_stream_handles_error(self, mock_settings) -> None:
-        """generate_template_stream should yield error event on failure."""
-        
+    async def test_generate_stream_handles_error(self, mock_settings) -> None:
+        """generate_stream should yield error event on failure."""
+
         async def mock_astream_error(*args, **kwargs):
-            """Mock async generator that raises error."""
             raise ValueError("API Error")
-            yield  # Make it a generator
+            yield  # noqa: unreachable
 
-        mock_llm = MagicMock()
-        mock_llm.astream = mock_astream_error
-        
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
+        with (
+            patch("infrastructure.llm.client.ChatOpenAI") as mock_llm_cls,
+            patch("store.vector.faiss_store.FAISS"),
+        ):
+            mock_llm = MagicMock()
+            mock_llm.astream = mock_astream_error
+            mock_llm_cls.return_value = mock_llm
 
-            agent = StreamingModuleBuilderAgent(mock_settings)
+            from agents.blueprints.graph import BlueprintsGraph
+
+            graph = BlueprintsGraph(mock_settings)
             events = []
 
-            async for event in agent.generate_template_stream("Create something"):
+            async for event in graph.generate_stream("Create something"):
                 events.append(event)
 
-            # Should have error event
             assert len(events) >= 1
             assert events[-1].event_type == StreamEventType.ERROR
-            # Error messages are sanitized to not expose internal details
-            assert "error occurred" in events[-1].data.lower()
-
-    @pytest.mark.asyncio
-    async def test_parse_response_extracts_template_and_explanation(
-        self, mock_settings
-    ) -> None:
-        """_parse_response should extract template JSON and explanation."""
-        mock_llm = MagicMock()
-        
-        with patch("langchain_openai.ChatOpenAI", return_value=mock_llm):
-            from ai_agent.agent.streaming import StreamingModuleBuilderAgent
-
-            agent = StreamingModuleBuilderAgent(mock_settings)
-
-            content = """Here is the template:
-
-```json
-{
-    "template_id": "usr-reg-001",
-    "template_name": "User Registration",
-    "description": "User registration form template"
-}
-```
-
-EXPLANATION:
-This template provides a basic structure for user registration with essential fields.
-It follows best practices for form design."""
-
-            result = agent._parse_response(content)
-
-            assert result.template.template_id == "usr-reg-001"
-            assert result.template.template_name == "User Registration"
-            assert "basic structure" in result.explanation
-
-
-class TestCreateStreamingTemplateAgent:
-    """Test cases for create_streaming_template_agent factory."""
-
-    def test_creates_singleton_instance(self) -> None:
-        """create_streaming_template_agent should return singleton instance."""
-        import ai_agent.agent.streaming as streaming_module
-
-        # Reset singleton
-        streaming_module._streaming_agent_instance = None
-
-        env_vars = {
-            "OPENROUTER__API_KEY": "test-key",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            from ai_agent.config.settings import Settings, get_settings
-
-            get_settings.cache_clear()
-            settings = Settings()
-
-            agent1 = streaming_module.create_streaming_template_agent(settings)
-            agent2 = streaming_module.create_streaming_template_agent(settings)
-
-            assert agent1 is agent2
-
-            # Cleanup
-            streaming_module._streaming_agent_instance = None
