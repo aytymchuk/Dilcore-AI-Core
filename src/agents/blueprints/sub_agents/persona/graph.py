@@ -16,7 +16,7 @@ from typing_extensions import TypedDict
 from agents.blueprints.sub_agents.persona.nodes.resolve import ResolveIntentNode
 from api.schemas.persona import PersonaRequest, PersonaResponse
 from infrastructure.llm import create_embeddings, create_llm
-from shared.config import Settings
+from shared.config import Settings, get_settings
 from store.vector import FaissVectorStore
 
 logger = logging.getLogger(__name__)
@@ -157,3 +157,8 @@ class PersonaGraph:
             metadata={"entity_type": entity_type, "id": data.get("id", ""), "raw": data},
         )
         self._data_store.add_document(doc)
+
+
+# Expose compiled StateGraph for LangGraph Studio/CLI
+_persona_graph_instance = PersonaGraph(get_settings())
+graph = _persona_graph_instance._build_graph()

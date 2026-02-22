@@ -24,7 +24,7 @@ from agents.blueprints.tools.vector_search import set_store
 from api.schemas.response import TemplateResponse
 from api.schemas.streaming import StreamEvent
 from infrastructure.llm import create_embeddings, create_llm
-from shared.config import Settings
+from shared.config import Settings, get_settings
 from shared.exceptions import TemplateParsingError
 from shared.streaming import StreamEmitter
 from store.vector import FaissVectorStore
@@ -128,3 +128,7 @@ class BlueprintsGraph:
     def clear_context(self) -> None:
         """Clear session context."""
         self._context_entities.clear()
+
+
+# Expose compiled StateGraph for LangGraph Studio/CLI
+graph = BlueprintsGraph(get_settings())._graph

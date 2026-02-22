@@ -52,3 +52,4 @@ logs/
 
 # Application Data
 data/
+.langgraph_api/
