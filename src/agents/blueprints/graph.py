@@ -9,9 +9,7 @@ and exposes simple async methods for the application service layer.
 
 from __future__ import annotations
 
-import json
 import logging
-import re
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -24,10 +22,11 @@ from agents.blueprints.prompts import STREAMING_GENERATION_PROMPT, STREAMING_SYS
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.tools.vector_search import set_store
 from api.schemas.response import TemplateResponse
-from api.schemas.streaming import StreamEvent, StreamEventType, StreamingTemplateResponse
+from api.schemas.streaming import StreamEvent
 from infrastructure.llm import create_embeddings, create_llm
 from shared.config import Settings
 from shared.exceptions import TemplateParsingError
+from shared.streaming import StreamEmitter
 from store.vector import FaissVectorStore
 
 logger = logging.getLogger(__name__)
@@ -120,71 +119,9 @@ class BlueprintsGraph:
             ),
         ]
 
-        accumulated_content = ""
-        current_mode = StreamEventType.CONTENT
-
-        try:
-            from openai import APIConnectionError, APIError, RateLimitError
-
-            async for chunk in self._streaming_llm.astream(messages):
-                chunk_content = chunk.content if hasattr(chunk, "content") else ""
-                if not chunk_content:
-                    continue
-
-                is_thinking = self._is_thinking_chunk(chunk)
-                if is_thinking:
-                    current_mode = StreamEventType.THINKING
-                elif current_mode == StreamEventType.THINKING:
-                    current_mode = StreamEventType.CONTENT
-
-                accumulated_content += chunk_content
-                yield StreamEvent(event_type=current_mode, data=chunk_content)
-
-            # Parse and yield final template
-            template_response = self._parse_streaming_response(accumulated_content)
-            yield StreamEvent(
-                event_type=StreamEventType.TEMPLATE,
-                data=template_response.model_dump(mode="json"),
-            )
-            yield StreamEvent(event_type=StreamEventType.DONE, data="Stream completed")
-
-        except (APIConnectionError, APIError, RateLimitError):
-            logger.exception("LLM provider error during streaming")
-            yield StreamEvent(event_type=StreamEventType.ERROR, data="Unable to communicate with AI provider")
-        except (TemplateParsingError, Exception):
-            logger.exception("Error during streaming generation")
-            yield StreamEvent(event_type=StreamEventType.ERROR, data="Streaming generation failed")
-
-    def _is_thinking_chunk(self, chunk: Any) -> bool:
-        """Detect thinking/reasoning chunks (model-specific metadata)."""
-        if hasattr(chunk, "response_metadata"):
-            meta = chunk.response_metadata or {}
-            if meta.get("thinking") or meta.get("reasoning"):
-                return True
-        if hasattr(chunk, "additional_kwargs"):
-            kwargs = chunk.additional_kwargs or {}
-            if kwargs.get("thinking") or kwargs.get("is_thinking"):
-                return True
-        return False
-
-    def _parse_streaming_response(self, content: str) -> StreamingTemplateResponse:
-        """Parse accumulated streaming content into a StreamingTemplateResponse."""
-        try:
-            json_match = re.search(r"```json\s*([\s\S]*?)\s*```", content)
-            if json_match:
-                template = TemplateResponse.model_validate(json.loads(json_match.group(1).strip()))
-            else:
-                template = _parser.parse(content)
-
-            explanation_match = re.search(r"EXPLANATION:\s*([\s\S]*?)(?:\Z|```)", content, re.IGNORECASE)
-            explanation = (
-                explanation_match.group(1).strip()
-                if explanation_match
-                else "Template generated based on the provided requirements."
-            )
-            return StreamingTemplateResponse(template=template, explanation=explanation)
-        except Exception as exc:
-            raise TemplateParsingError("Unable to parse the generated template response") from exc
+        emitter = StreamEmitter(self._streaming_llm, messages, _parser)
+        async for event in emitter.stream():
+            yield event
 
     def get_context_entities(self) -> list[dict[str, Any]]:
         """Return entities created in this session."""

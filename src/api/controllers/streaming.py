@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from api.controllers.dependencies import BlueprintsServiceDep
 from api.schemas import GenerateRequest
 from api.schemas.errors import ProblemDetails
+from shared.streaming import format_sse_event
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ async def generate_template_stream(
 
     async def event_generator():
         async for event in service.generate_template_stream(request.prompt):
-            yield f"data: {event.model_dump_json()}\n\n"
+            yield format_sse_event(event)
 
     return StreamingResponse(
         event_generator(),

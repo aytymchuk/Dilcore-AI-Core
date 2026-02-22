@@ -105,10 +105,10 @@ module = [
 ignore_missing_imports = true
 
 [tool.poe.tasks]
-lint = "ruff check src tests"
+lint = "ruff check --fix src tests"
 format = "ruff format src tests"
 typecheck = "mypy src tests"
 test = "pytest"
 pre-commit = "pre-commit run --all-files"
-check = ["lint", "typecheck", "test"]
+check = ["lint", "format", "typecheck", "test"]
 serve = "uvicorn src.main:app --reload"
