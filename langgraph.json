@@ -3,8 +3,7 @@
         "."
     ],
     "graphs": {
-        "blueprints": "./src/agents/blueprints/graph.py:graph",
-        "persona": "./src/agents/blueprints/sub_agents/persona/graph.py:graph"
+        "blueprints": "./src/agents/blueprints/graph.py:graph"
     },
     "env": ".env"
 }

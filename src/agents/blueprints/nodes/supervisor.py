@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from agents.blueprints.prompts import SUPERVISOR_SYSTEM_PROMPT
 from agents.blueprints.state import BlueprintsState
+from shared.models import LLMDecision
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +40,16 @@ class SupervisorNode:
     async def __call__(self, state: BlueprintsState) -> dict:
         """Evaluate user messages and return the next route."""
         messages = [SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT)] + state["messages"]
-        structured_llm = self._llm.with_structured_output(SupervisorDecision)
-        decision: SupervisorDecision = await structured_llm.ainvoke(messages)
+        structured_llm = self._llm.with_structured_output(LLMDecision[SupervisorDecision])
+        output: LLMDecision[SupervisorDecision] = await structured_llm.ainvoke(messages)
+        decision = output.decision
 
-        logger.info(f"Supervisor routed to: {decision.next_route}")
+        route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
+        if route not in [ASK_ROUTE, IDENTIFY_INTENT_ROUTE, GENERATE_ROUTE]:
+            logger.warning(f"Unexpected route from LLM: {route}. Falling back to {IDENTIFY_INTENT_ROUTE}.")
+            route = IDENTIFY_INTENT_ROUTE
 
-        return {"next_route": decision.next_route}
+        logger.info(f"Supervisor reasoning: {output.reasoning}")
+        logger.info(f"Supervisor routed to: {route}")
+
+        return {"next_route": route}

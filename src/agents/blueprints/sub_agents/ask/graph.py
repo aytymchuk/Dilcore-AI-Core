@@ -1,32 +1,23 @@
 """Ask sub-graph for providing guidance and information about blueprints."""
 
-from langchain_core.messages import SystemMessage
-from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
+from langgraph.prebuilt import create_react_agent
 
-from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.ask.prompts import ASK_SYSTEM_PROMPT
+from agents.blueprints.sub_agents.ask.tools import get_blueprint_configuration_info
 from infrastructure.llm import create_llm
 from shared.config import get_settings
 
 
-async def ask_node(state: BlueprintsState) -> dict:
-    """Answers user queries about blueprints."""
-    settings = get_settings()
-    llm = create_llm(settings, streaming=False)
-
-    # Prepend the system prompt to the conversation history
-    messages = [SystemMessage(content=ASK_SYSTEM_PROMPT)] + state["messages"]
-
-    response = await llm.ainvoke(messages)
-    return {"messages": [response]}
-
-
 def build_ask_graph() -> CompiledStateGraph:
-    """Build and compile the Ask sub-graph."""
-    workflow = StateGraph(BlueprintsState)
-    workflow.add_node("ask", ask_node)
-    workflow.set_entry_point("ask")
-    workflow.add_edge("ask", END)
+    """Build and compile the Ask sub-graph using a ReAct agent."""
+    settings = get_settings()
+    llm = create_llm(settings, streaming=True)
 
-    return workflow.compile()
+    tools = [get_blueprint_configuration_info]
+
+    return create_react_agent(
+        model=llm,
+        tools=tools,
+        prompt=ASK_SYSTEM_PROMPT,
+    )
