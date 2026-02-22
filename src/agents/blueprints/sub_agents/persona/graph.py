@@ -7,13 +7,13 @@ Graph flow:
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from langchain_core.documents import Document
 from langgraph.graph import END, StateGraph
 from typing_extensions import TypedDict
 
-from agents.blueprints.sub_agents.persona.nodes.resolve import resolve_intent_node
+from agents.blueprints.sub_agents.persona.nodes.resolve import ResolveIntentNode
 from api.schemas.persona import PersonaRequest, PersonaResponse
 from infrastructure.llm import create_embeddings, create_llm
 from shared.config import Settings
@@ -34,26 +34,34 @@ class PersonaState(TypedDict):
     error: str | None
 
 
-async def _retrieve_metadata_node(state: PersonaState) -> dict[str, Any]:
+class RetrieveMetadataNode:
     """Retrieve relevant forms and views from the metadata vector store."""
-    vector_store = cast(FaissVectorStore | None, dict(state).get("_metadata_store"))
-    query = state["user_request"]
-    if vector_store is None:
-        return {"relevant_forms": [], "relevant_views": []}
 
-    forms = vector_store.similarity_search(query, top_k=3, filter_dict={"type": "form"})
-    views = vector_store.similarity_search(query, top_k=3, filter_dict={"type": "view"})
-    return {"relevant_forms": forms, "relevant_views": views}
+    def __init__(self, vector_store: FaissVectorStore | None) -> None:
+        self._vector_store = vector_store
+
+    async def __call__(self, state: PersonaState) -> dict[str, Any]:
+        query = state["user_request"]
+        if self._vector_store is None:
+            return {"relevant_forms": [], "relevant_views": []}
+
+        forms = self._vector_store.similarity_search(query, top_k=3, filter_dict={"type": "form"})
+        views = self._vector_store.similarity_search(query, top_k=3, filter_dict={"type": "view"})
+        return {"relevant_forms": forms, "relevant_views": views}
 
 
-async def _retrieve_data_node(state: PersonaState) -> dict[str, Any]:
+class RetrieveDataNode:
     """Retrieve relevant data records from the data vector store."""
-    data_store = cast(FaissVectorStore | None, dict(state).get("_data_store"))
-    query = state["user_request"]
-    if data_store is None:
-        return {"relevant_data": []}
-    data = data_store.similarity_search(query, top_k=5)
-    return {"relevant_data": data}
+
+    def __init__(self, vector_store: FaissVectorStore | None) -> None:
+        self._vector_store = vector_store
+
+    async def __call__(self, state: PersonaState) -> dict[str, Any]:
+        query = state["user_request"]
+        if self._vector_store is None:
+            return {"relevant_data": []}
+        data = self._vector_store.similarity_search(query, top_k=5)
+        return {"relevant_data": data}
 
 
 class PersonaGraph:
@@ -87,9 +95,9 @@ class PersonaGraph:
 
     def _build_graph(self):
         workflow = StateGraph(PersonaState)
-        workflow.add_node("retrieve_metadata", _retrieve_metadata_node)
-        workflow.add_node("retrieve_data", _retrieve_data_node)
-        workflow.add_node("resolve_intent", resolve_intent_node)
+        workflow.add_node("retrieve_metadata", RetrieveMetadataNode(self._metadata_store))
+        workflow.add_node("retrieve_data", RetrieveDataNode(self._data_store))
+        workflow.add_node("resolve_intent", ResolveIntentNode(self._llm))
         workflow.set_entry_point("retrieve_metadata")
         workflow.add_edge("retrieve_metadata", "retrieve_data")
         workflow.add_edge("retrieve_data", "resolve_intent")
@@ -111,11 +119,7 @@ class PersonaGraph:
             "relevant_forms": [],
             "relevant_views": [],
             "relevant_data": [],
-            "persona_response": None,
             "error": None,
-            "_llm": self._llm,
-            "_metadata_store": self._metadata_store,
-            "_data_store": self._data_store,
         }
         result = await self._graph.ainvoke(initial_state)
         return result["persona_response"]

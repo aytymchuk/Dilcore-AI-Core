@@ -7,7 +7,7 @@ the LangChain message list, calls the LLM, and parses the response.
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from typing import Any
 
 from langchain_core.exceptions import OutputParserException
 from langchain_core.language_models import BaseChatModel
@@ -25,54 +25,63 @@ logger = logging.getLogger(__name__)
 _parser = PydanticOutputParser(pydantic_object=TemplateResponse)
 
 
-async def generate_template_node(state: BlueprintsState) -> dict[str, Any]:
-    """Call the LLM and parse a TemplateResponse from the output.
+class GenerateTemplateNode:
+    """Call the LLM and parse a TemplateResponse from the output."""
 
-    Args:
-        state: Current graph state containing prompt, related_entities,
-               context_entities, and the LLM client via ``_llm``.
+    def __init__(self, llm: BaseChatModel | None) -> None:
+        """Initialise the node with the LLM dependency.
 
-    Returns:
-        Partial state update with ``template_response`` or ``error``.
-    """
-    llm = cast(BaseChatModel | None, dict(state).get("_llm"))
-    if llm is None:
-        return {"error": "LLM client not configured in graph state"}
+        Args:
+            llm: Chat model used for structured generation.
+        """
+        self._llm = llm
 
-    prompt = state["prompt"]
-    related = state.get("related_entities", [])
-    context = state.get("context_entities", [])
+    async def __call__(self, state: BlueprintsState) -> dict[str, Any]:
+        """Execute the template generation node logic.
 
-    # Build context string
-    context_str = ""
-    all_entities = related + context
-    if all_entities:
-        entity_names = [e.get("name", e.get("id", "unknown")) for e in all_entities]
-        context_str = f"\n\nExisting related entities: {', '.join(entity_names)}"
+        Args:
+            state: Current graph state containing prompt and related logic.
 
-    messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
-        HumanMessage(
-            content=TEMPLATE_GENERATION_PROMPT.format(prompt=prompt)
-            + context_str
-            + f"\n\n{_parser.get_format_instructions()}"
-        ),
-    ]
+        Returns:
+            Partial state update with ``template_response`` or ``error``.
+        """
+        if self._llm is None:
+            return {"error": "LLM client not configured"}
 
-    try:
-        response = await llm.ainvoke(messages)
-        template = _parser.parse(str(response.content))
-        logger.info("Generated template: %s", template.template_id)
-        return {"template_response": template, "error": None}
+        prompt = state["prompt"]
+        related = state.get("related_entities", [])
+        context = state.get("context_entities", [])
 
-    except (APIConnectionError, APIError, RateLimitError) as exc:
-        logger.exception("LLM provider error")
-        raise LLMProviderError("Unable to communicate with AI provider") from exc
+        # Build context string
+        context_str = ""
+        all_entities = related + context
+        if all_entities:
+            entity_names = [e.get("name", e.get("id", "unknown")) for e in all_entities]
+            context_str = f"\n\nExisting related entities: {', '.join(entity_names)}"
 
-    except OutputParserException as exc:
-        logger.exception("Failed to parse LLM response")
-        raise TemplateParsingError("Unable to parse the generated template response") from exc
+        messages = [
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(
+                content=TEMPLATE_GENERATION_PROMPT.format(prompt=prompt)
+                + context_str
+                + f"\n\n{_parser.get_format_instructions()}"
+            ),
+        ]
 
-    except Exception as exc:
-        logger.exception("Unexpected error during template generation")
-        raise TemplateGenerationError("An unexpected error occurred during template generation") from exc
+        try:
+            response = await self._llm.ainvoke(messages)
+            template = _parser.parse(str(response.content))
+            logger.info("Generated template: %s", template.template_id)
+            return {"template_response": template, "error": None}
+
+        except (APIConnectionError, APIError, RateLimitError) as exc:
+            logger.exception("LLM provider error")
+            raise LLMProviderError("Unable to communicate with AI provider") from exc
+
+        except OutputParserException as exc:
+            logger.exception("Failed to parse LLM response")
+            raise TemplateParsingError("Unable to parse the generated template response") from exc
+
+        except Exception as exc:
+            logger.exception("Unexpected error during template generation")
+            raise TemplateGenerationError("An unexpected error occurred during template generation") from exc

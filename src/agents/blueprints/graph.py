@@ -17,7 +17,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.output_parsers import PydanticOutputParser
 from langgraph.graph import END, StateGraph
 
-from agents.blueprints.nodes import generate_template_node, retrieve_related_entities_node
+from agents.blueprints.nodes import GenerateTemplateNode, RetrieveRelatedEntitiesNode
 from agents.blueprints.prompts import STREAMING_GENERATION_PROMPT, STREAMING_SYSTEM_PROMPT
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.tools.vector_search import set_store
@@ -63,8 +63,8 @@ class BlueprintsGraph:
     def _build_graph(self):
         """Build and compile the LangGraph StateGraph."""
         workflow = StateGraph(BlueprintsState)
-        workflow.add_node("retrieve", retrieve_related_entities_node)
-        workflow.add_node("generate", generate_template_node)
+        workflow.add_node("retrieve", RetrieveRelatedEntitiesNode(self._vector_store))
+        workflow.add_node("generate", GenerateTemplateNode(self._llm))
         workflow.set_entry_point("retrieve")
         workflow.add_edge("retrieve", "generate")
         workflow.add_edge("generate", END)
@@ -87,8 +87,6 @@ class BlueprintsGraph:
             "template_response": None,
             "error": None,
             "stream_chunks": [],
-            "_llm": self._llm,
-            "_vector_store": self._vector_store,
         }
         result = await self._graph.ainvoke(initial_state)
 
