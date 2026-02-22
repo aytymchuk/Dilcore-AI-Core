@@ -1,15 +1,15 @@
-"""Blueprints (module builder) controller."""
+"""Blueprints controller for thread management."""
 
 from __future__ import annotations
 
 import logging
 
 from fastapi import APIRouter, status
-from sse_starlette.sse import EventSourceResponse
 
 from api.controllers.dependencies import BlueprintsServiceDep
-from api.schemas import GenerateRequest, TemplateResponse
 from api.schemas.errors import ProblemDetails
+from api.schemas.response import ThreadItemDto, ThreadResponseDto
+from api.schemas.thread import ThreadMessageInputDto
 
 logger = logging.getLogger(__name__)
 
@@ -17,43 +17,93 @@ router = APIRouter(prefix="/api/v1/blueprints", tags=["Blueprints Agent"])
 
 
 @router.post(
-    "/generate",
-    response_model=TemplateResponse,
+    "/start",
+    response_model=ThreadResponseDto,
     status_code=status.HTTP_200_OK,
-    summary="Generate metadata template",
-    description="Generate a structured metadata template based on a natural language prompt.",
+    summary="Start a new blueprint generation thread",
+    description="Starts a new thread and routes the user's initial message through the supervisor.",
     responses={
         422: {"description": "Validation error", "model": ProblemDetails},
-        500: {"description": "Generation error", "model": ProblemDetails},
-        502: {"description": "LLM provider error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
     },
 )
-async def generate_template(
-    request: GenerateRequest,
+async def start_thread(
+    request: ThreadMessageInputDto,
     service: BlueprintsServiceDep,
-) -> TemplateResponse:
-    """Generate a structured template from the prompt using the Blueprints LangGraph."""
-    logger.info("Received generate request")
-    return await service.generate_template(request.prompt)
+) -> ThreadResponseDto:
+    """Start a new thread with an initial message."""
+    logger.info("Received thread start request")
+    return await service.start(request)
 
 
 @router.post(
-    "/generate-stream",
+    "/{thread_id}/continue",
+    response_model=ThreadResponseDto,
     status_code=status.HTTP_200_OK,
-    summary="Stream metadata generation",
-    description="Stream template generation with real-time updates via Server-Sent Events.",
+    summary="Continue a thread",
+    description="Send a message to an existing thread.",
+    responses={
+        422: {"description": "Validation error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
+    },
 )
-async def generate_template_stream(
-    request: GenerateRequest,
+async def continue_thread(
+    thread_id: str,
+    request: ThreadMessageInputDto,
     service: BlueprintsServiceDep,
-) -> EventSourceResponse:
-    """Stream template generation with SSE events."""
+) -> ThreadResponseDto:
+    """Continue an existing thread."""
+    logger.info(f"Received continue request for thread {thread_id}")
+    return await service.continue_thread(thread_id, request)
 
-    async def event_generator():
-        async for event in service.generate_template_stream(request.prompt):
-            yield {
-                "event": event.event_type.value,
-                "data": event.data if isinstance(event.data, str) else str(event.data),
-            }
 
-    return EventSourceResponse(event_generator())
+@router.post(
+    "/{thread_id}/resume",
+    response_model=ThreadResponseDto,
+    status_code=status.HTTP_200_OK,
+    summary="Resume a thread",
+    description="Resume a paused or interrupted thread flow.",
+    responses={
+        422: {"description": "Validation error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
+    },
+)
+async def resume_thread(
+    thread_id: str,
+    request: ThreadMessageInputDto,
+    service: BlueprintsServiceDep,
+) -> ThreadResponseDto:
+    """Resume an existing thread."""
+    logger.info(f"Received resume request for thread {thread_id}")
+    return await service.resume(thread_id, request)
+
+
+@router.get(
+    "/threads",
+    response_model=list[ThreadItemDto],
+    status_code=status.HTTP_200_OK,
+    summary="List all threads",
+    description="Retrieve a list of all blueprint generation threads.",
+)
+async def get_threads(
+    service: BlueprintsServiceDep,
+) -> list[ThreadItemDto]:
+    """Retrieve all tracked threads."""
+    logger.info("Listing all threads")
+    return await service.get_threads()
+
+
+@router.get(
+    "/threads/{thread_id}",
+    response_model=ThreadResponseDto,
+    status_code=status.HTTP_200_OK,
+    summary="Get thread status",
+    description="Retrieve the current state and messages of a specific thread.",
+)
+async def get_thread(
+    thread_id: str,
+    service: BlueprintsServiceDep,
+) -> ThreadResponseDto:
+    """Get the specific thread by ID."""
+    logger.info(f"Getting thread {thread_id}")
+    return await service.get_thread(thread_id)

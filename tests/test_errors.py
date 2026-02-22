@@ -13,8 +13,6 @@ from shared.exceptions import (
     AIAgentException,
     ConfigurationError,
     LLMProviderError,
-    TemplateGenerationError,
-    TemplateParsingError,
     ValidationError,
 )
 
@@ -102,15 +100,6 @@ class TestCustomExceptions:
         assert exc.title == "Validation Error"
         assert exc.status_code == 400
 
-    def test_template_generation_error_defaults(self) -> None:
-        """TemplateGenerationError should have correct defaults."""
-        exc = TemplateGenerationError()
-
-        assert exc.message == "Failed to generate template"
-        assert exc.problem_type == "generation-error"
-        assert exc.title == "Template Generation Error"
-        assert exc.status_code == 500
-
     def test_llm_provider_error_defaults(self) -> None:
         """LLMProviderError should have correct defaults."""
         exc = LLMProviderError()
@@ -119,15 +108,6 @@ class TestCustomExceptions:
         assert exc.problem_type == "llm-provider-error"
         assert exc.title == "LLM Provider Error"
         assert exc.status_code == 502
-
-    def test_template_parsing_error_defaults(self) -> None:
-        """TemplateParsingError should have correct defaults."""
-        exc = TemplateParsingError()
-
-        assert exc.message == "Failed to parse template response"
-        assert exc.problem_type == "parsing-error"
-        assert exc.title == "Template Parsing Error"
-        assert exc.status_code == 500
 
     def test_configuration_error_defaults(self) -> None:
         """ConfigurationError should have correct defaults."""
@@ -141,9 +121,7 @@ class TestCustomExceptions:
     def test_base_exception_inheritance(self) -> None:
         """All custom exceptions should inherit from AIAgentException."""
         assert isinstance(ValidationError("test"), AIAgentException)
-        assert isinstance(TemplateGenerationError(), AIAgentException)
         assert isinstance(LLMProviderError(), AIAgentException)
-        assert isinstance(TemplateParsingError(), AIAgentException)
         assert isinstance(ConfigurationError("test"), AIAgentException)
 
 
@@ -166,7 +144,7 @@ class TestGlobalExceptionHandlers:
 
     def test_validation_error_returns_problem_details(self, client) -> None:
         """Validation errors should return Problem Details format."""
-        response = client.post("/api/v1/blueprints/generate", json={})
+        response = client.post("/api/v1/blueprints/start", json={})
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -181,7 +159,7 @@ class TestGlobalExceptionHandlers:
 
     def test_validation_error_empty_prompt(self, client) -> None:
         """Empty prompt validation should return Problem Details."""
-        response = client.post("/api/v1/blueprints/generate", json={"prompt": ""})
+        response = client.post("/api/v1/blueprints/start", json={"message": ""})
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -194,7 +172,7 @@ class TestGlobalExceptionHandlers:
     def test_validation_error_prompt_too_long(self, client) -> None:
         """Prompt exceeding max length should return Problem Details."""
         long_prompt = "a" * 5000
-        response = client.post("/api/v1/blueprints/generate", json={"prompt": long_prompt})
+        response = client.post("/api/v1/blueprints/start", json={"message": long_prompt})
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -244,7 +222,7 @@ class TestProblemDetailsNoInformationLeakage:
 
     def test_error_does_not_expose_api_keys(self, client) -> None:
         """Error responses should not expose API keys."""
-        response = client.post("/api/v1/blueprints/generate", json={})
+        response = client.post("/api/v1/blueprints/start", json={})
 
         assert response.status_code == 422
         data = response.json()
@@ -254,7 +232,7 @@ class TestProblemDetailsNoInformationLeakage:
 
     def test_error_does_not_expose_file_paths(self, client) -> None:
         """Error responses should not expose internal file paths."""
-        response = client.post("/api/v1/blueprints/generate", json={"prompt": ""})
+        response = client.post("/api/v1/blueprints/start", json={"message": ""})
 
         data = response.json()
         response_str = str(data)
@@ -265,7 +243,7 @@ class TestProblemDetailsNoInformationLeakage:
 
     def test_error_does_not_expose_internal_class_names(self, client) -> None:
         """Error responses should not expose internal class names."""
-        response = client.post("/api/v1/blueprints/generate", json={})
+        response = client.post("/api/v1/blueprints/start", json={})
 
         data = response.json()
         response_str = str(data)

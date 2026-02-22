@@ -1,18 +1,20 @@
 """Blueprints orchestration service.
 
-Mediates between the HTTP API layer and the Blueprints LangGraph agent.
+Mediates between the HTTP API layer and the Blueprints LangGraph supervisor.
 Controllers should call this service rather than invoking the graph directly.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncGenerator
-from typing import Any
+import uuid
+
+from langchain_core.messages import HumanMessage
 
 from agents.blueprints.graph import BlueprintsGraph
-from api.schemas.response import TemplateResponse
-from api.schemas.streaming import StreamEvent
+from api.schemas.response import ThreadItemDto, ThreadResponseDto
+from api.schemas.thread import ThreadMessageInputDto
+from infrastructure.checkpoint.memory import get_checkpointer
 from shared.config import Settings
 
 logger = logging.getLogger(__name__)
@@ -34,40 +36,78 @@ class BlueprintsService:
         """
         self._settings = settings
         self._graph = BlueprintsGraph(settings)
+        # We access the singleton checkpointer, required to list state for existing threads
+        self._checkpointer = get_checkpointer()
 
-    async def generate_template(self, prompt: str) -> TemplateResponse:
-        """Generate a structured metadata template.
+    async def start(self, request: ThreadMessageInputDto) -> ThreadResponseDto:
+        """Start a new thread with an initial message."""
+        thread_id = str(uuid.uuid4())
+        return await self._process_message(thread_id, request)
 
-        Args:
-            prompt: Natural language description of the template to create.
+    async def continue_thread(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
+        """Continue an existing thread with a new message."""
+        return await self._process_message(thread_id, request)
 
-        Returns:
-            Parsed TemplateResponse.
-        """
-        logger.info("BlueprintsService: generate_template called")
-        return await self._graph.generate(prompt)
+    async def resume(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
+        """Resume a thread flow (conceptually similar to continue_thread here)."""
+        # E.g. If the graph was fully interrupted and waiting for user feedback,
+        # we can pass the message back.
+        return await self._process_message(thread_id, request)
 
-    async def generate_template_stream(self, prompt: str) -> AsyncGenerator[StreamEvent, None]:
-        """Stream template generation events.
+    async def get_thread(self, thread_id: str) -> ThreadResponseDto:
+        """Get the current state and messages of a thread."""
+        config = {"configurable": {"thread_id": thread_id}}
+        state_tuple = self._checkpointer.get_tuple(config)
 
-        Args:
-            prompt: Natural language description of the template to create.
+        messages = []
+        if state_tuple and state_tuple.checkpoint and "channel_values" in state_tuple.checkpoint:
+            channel_values = state_tuple.checkpoint["channel_values"]
+            if "messages" in channel_values:
+                # Format to simple dicts or leave as LangChain messages
+                messages = [{"type": m.type, "content": m.content} for m in channel_values["messages"]]
 
-        Yields:
-            StreamEvent objects (thinking, content, template, done, error).
-        """
-        logger.info("BlueprintsService: generate_template_stream called")
-        async for event in self._graph.generate_stream(prompt):
-            yield event
+        return ThreadResponseDto(id=thread_id, messages=messages)
 
-    async def get_context(self) -> list[dict[str, Any]]:
-        """Return conversation context entities from the active graph session.
+    async def get_threads(self) -> list[ThreadItemDto]:
+        """List all tracked threads."""
+        threads = []
+        # LangGraph memory checkpointer allows listing all state checkpoints.
+        # This implementation depends on how `MemorySaver.list()` exposes data.
+        # We group by thread_id to ensure we only get the latest state per thread.
+        seen_threads = set()
+        for state_tuple in self._checkpointer.list({}):
+            thread_id = state_tuple.config["configurable"]["thread_id"]
+            if thread_id not in seen_threads:
+                seen_threads.add(thread_id)
 
-        Returns:
-            List of entity metadata dicts added during this session.
-        """
-        return self._graph.get_context_entities()
+                # Derive a name from the first message
+                name = f"Thread {thread_id[:8]}"
+                if state_tuple.checkpoint and "channel_values" in state_tuple.checkpoint:
+                    channel_values = state_tuple.checkpoint["channel_values"]
+                    if "messages" in channel_values and len(channel_values["messages"]) > 0:
+                        first_msg = channel_values["messages"][0]
+                        name = (first_msg.content[:30] + "...") if len(first_msg.content) > 30 else first_msg.content
 
-    def clear_context(self) -> None:
-        """Clear conversation context."""
-        self._graph.clear_context()
+                threads.append(ThreadItemDto(id=thread_id, name=name))
+
+        return threads
+
+    async def _process_message(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
+        """Internal helper to invoke the supervisor with a configurable thread_id."""
+        config = {"configurable": {"thread_id": thread_id}}
+
+        # The supervisor graph will route the message to the appropriate sub-graph.
+        # We pass the user message as a HumanMessage dict to the state.
+        state_input = {"messages": [HumanMessage(content=request.message)]}
+
+        # Since the supervisor is stateless but wraps a sub-graph that DOES have a checkpointer
+        # calling it with config will cause the sub-graph to load state if routed there.
+        # However, because the Supervisor isn't stateful, it won't persist its own state.
+        result = await self._graph.ainvoke(state_input, config=config)
+
+        # Format output messages for the DTO
+        message_dicts = []
+        if "messages" in result:
+            message_dicts = [{"type": m.type, "content": m.content} for m in result["messages"]]
+
+        return ThreadResponseDto(id=thread_id, messages=message_dicts)

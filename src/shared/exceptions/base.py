@@ -43,19 +43,6 @@ class ValidationError(AIAgentException):
         )
 
 
-class TemplateGenerationError(AIAgentException):
-    """Raised when template generation fails."""
-
-    def __init__(self, message: str = "Failed to generate template") -> None:
-        """Initialize template generation error."""
-        super().__init__(
-            message=message,
-            problem_type="generation-error",
-            title="Template Generation Error",
-            status_code=500,
-        )
-
-
 class LLMProviderError(AIAgentException):
     """Raised when LLM provider communication fails."""
 
@@ -66,19 +53,6 @@ class LLMProviderError(AIAgentException):
             problem_type="llm-provider-error",
             title="LLM Provider Error",
             status_code=502,
-        )
-
-
-class TemplateParsingError(AIAgentException):
-    """Raised when template parsing fails."""
-
-    def __init__(self, message: str = "Failed to parse template response") -> None:
-        """Initialize template parsing error."""
-        super().__init__(
-            message=message,
-            problem_type="parsing-error",
-            title="Template Parsing Error",
-            status_code=500,
         )
 
 
