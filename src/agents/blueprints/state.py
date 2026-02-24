@@ -17,8 +17,6 @@ class BlueprintsState(TypedDict):
 
     Attributes:
         messages: LangChain message history (reducer: add_messages).
-        next_route: The next node to route to, determined by the supervisor.
     """
 
     messages: Annotated[list[BaseMessage], add_messages]
-    next_route: str

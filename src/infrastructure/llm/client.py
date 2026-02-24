@@ -30,6 +30,26 @@ def create_llm(settings: Settings, *, streaming: bool = False) -> ChatOpenAI:
     )
 
 
+def create_creative_llm(settings: Settings, *, streaming: bool = False) -> ChatOpenAI:
+    """Create a configured ChatOpenAI instance optimized for answer completeness.
+
+    Args:
+        settings: Application settings.
+        streaming: Whether to enable token-level streaming.
+
+    Returns:
+        Configured ChatOpenAI instance pointing at OpenRouter with adjusted parameters for creativity.
+    """
+    return ChatOpenAI(
+        api_key=settings.openrouter.api_key.get_secret_value(),
+        base_url=settings.openrouter.base_url,
+        model=settings.openrouter.model,
+        temperature=0.4,  # Increased for fluid analogies and completeness
+        max_tokens=4000,  # Ensure output isn't aggressively truncated
+        streaming=streaming,
+    )
+
+
 def create_embeddings(settings: Settings) -> OpenAIEmbeddings:
     """Create a configured OpenAIEmbeddings instance.
 

@@ -4,6 +4,7 @@ import logging
 from typing import Literal
 
 from langchain_core.messages import SystemMessage
+from langgraph.types import Command
 from pydantic import BaseModel, Field
 
 from agents.blueprints.prompts import SUPERVISOR_SYSTEM_PROMPT
@@ -37,19 +38,26 @@ class SupervisorNode:
         """Initialize the node with the LLM instance."""
         self._llm = llm
 
-    async def __call__(self, state: BlueprintsState) -> dict:
+    async def __call__(self, state: BlueprintsState) -> Command[RouteNames]:
         """Evaluate user messages and return the next route."""
         messages = [SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT)] + state["messages"]
         structured_llm = self._llm.with_structured_output(LLMDecision[SupervisorDecision])
-        output: LLMDecision[SupervisorDecision] = await structured_llm.ainvoke(messages)
-        decision = output.decision
 
-        route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
+        try:
+            output: LLMDecision[SupervisorDecision] = await structured_llm.ainvoke(messages)
+            decision = output.decision
+            route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
+            reasoning = output.reasoning
+        except Exception as e:
+            logger.error(f"Failed to parse supervisor decision: {e}. Falling back to {IDENTIFY_INTENT_ROUTE}.")
+            route = IDENTIFY_INTENT_ROUTE
+            reasoning = "Failed to parse model output or recognize intent."
+
         if route not in [ASK_ROUTE, IDENTIFY_INTENT_ROUTE, GENERATE_ROUTE]:
             logger.warning(f"Unexpected route from LLM: {route}. Falling back to {IDENTIFY_INTENT_ROUTE}.")
             route = IDENTIFY_INTENT_ROUTE
 
-        logger.info(f"Supervisor reasoning: {output.reasoning}")
+        logger.info(f"Supervisor reasoning: {reasoning}")
         logger.info(f"Supervisor routed to: {route}")
 
-        return {"next_route": route}
+        return Command(goto=route)

@@ -47,10 +47,6 @@ class BlueprintsGraph:
         self._llm = create_llm(settings, streaming=False)
         self._graph = self._build_graph()
 
-    async def _route(self, state: BlueprintsState) -> RouteNames:
-        """Conditional edge returning the route determined by the supervisor node."""
-        return state["next_route"]  # type: ignore
-
     def _build_graph(self):
         """Build and compile the Supervisor LangGraph."""
         builder = StateGraph(BlueprintsState)
@@ -66,17 +62,6 @@ class BlueprintsGraph:
         builder.add_edge(GENERATE_ROUTE, END)
 
         builder.add_edge(START, "supervisor")
-
-        # Routing edge
-        builder.add_conditional_edges(
-            "supervisor",
-            self._route,
-            {
-                ASK_ROUTE: ASK_ROUTE,
-                IDENTIFY_INTENT_ROUTE: IDENTIFY_INTENT_ROUTE,
-                GENERATE_ROUTE: GENERATE_ROUTE,
-            },
-        )
 
         # The supervisor is stateless (no checkpointer passed here)
         return builder.compile()
