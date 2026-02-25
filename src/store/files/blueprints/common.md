@@ -72,7 +72,7 @@ This layer is the engine that keeps the business moving. Users can visually desi
 
 **In plain terms:** When the system runs by itself and what it does—e.g. every Monday at 9 AM, or when a new high-priority ticket is created; then the sequence of actions (notify someone, send an email, update a record).
 
-- **Triggers:** The events that start a workflow (e.g., "When a new High Priority Ticket is created" or "Every Monday at 9 AM").
+- **Triggers:** The events that start a workflow (e.g., "When a new High-Priority Ticket is created" or "Every Monday at 9 AM").
 - **Jobs/Steps:** The sequence of actions that follow a trigger, including routing approvals, sending emails, or updating records.
 
 ### 4. The Integration Layer

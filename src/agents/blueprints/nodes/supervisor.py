@@ -48,16 +48,16 @@ class SupervisorNode:
             decision = output.decision
             route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
             reasoning = output.reasoning
-        except Exception as e:
-            logger.error(f"Failed to parse supervisor decision: {e}. Falling back to {IDENTIFY_INTENT_ROUTE}.")
+        except Exception:
+            logger.exception("Failed to parse supervisor decision. Falling back to %s.", IDENTIFY_INTENT_ROUTE)
             route = IDENTIFY_INTENT_ROUTE
             reasoning = "Failed to parse model output or recognize intent."
 
         if route not in [ASK_ROUTE, IDENTIFY_INTENT_ROUTE, GENERATE_ROUTE]:
-            logger.warning(f"Unexpected route from LLM: {route}. Falling back to {IDENTIFY_INTENT_ROUTE}.")
+            logger.warning("Unexpected route from LLM: %s. Falling back to %s.", route, IDENTIFY_INTENT_ROUTE)
             route = IDENTIFY_INTENT_ROUTE
 
-        logger.info(f"Supervisor reasoning: {reasoning}")
-        logger.info(f"Supervisor routed to: {route}")
+        logger.debug("Supervisor reasoning: %s", reasoning)
+        logger.info("Supervisor routed to: %s", route)
 
         return Command(goto=route)
