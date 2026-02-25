@@ -21,6 +21,7 @@ from agents.blueprints.nodes import (
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.ask.graph import build_ask_graph
 from agents.blueprints.sub_agents.generate.graph import build_generate_graph
+from infrastructure.checkpoint.document_checkpointer import get_checkpointer
 from infrastructure.llm import create_llm
 from shared.config import Settings, get_settings
 
@@ -39,7 +40,7 @@ class BlueprintsGraph:
 
     Lifecycle:
         - Created once per application.
-        - The supervisor itself is stateless (no checkpointer allocated).
+        - Uses MongoDB checkpointer for thread state persistence.
     """
 
     def __init__(self, settings: Settings) -> None:
@@ -63,8 +64,7 @@ class BlueprintsGraph:
 
         builder.add_edge(START, "supervisor")
 
-        # The supervisor is stateless (no checkpointer passed here)
-        return builder.compile()
+        return builder.compile(checkpointer=get_checkpointer())
 
     async def ainvoke(self, state: dict, config: dict | None = None) -> dict:
         """Invoke the graph with state."""

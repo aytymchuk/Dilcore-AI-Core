@@ -3,7 +3,7 @@ name = "ai-agent"
 version = "0.2.0"
 description = "AI Agent with LangChain, LangGraph, and OpenRouter for structured JSON template generation"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 license = { text = "MIT" }
 authors = [
     { name = "Arsen Tymchuk", email = "arsen.tymchuk@example.com" }
@@ -17,6 +17,8 @@ dependencies = [
     "langchain-openai>=0.3.0",
     "langchain-community>=0.3.0",
     "langgraph>=0.2.83",
+    "langgraph-checkpoint-mongodb>=0.3.0",
+    "pymongo>=4.12,<4.16",
     "langchain-core>=0.3.83",
     "faiss-cpu>=1.8.0",
     "pydantic-settings>=2.0.0",

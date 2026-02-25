@@ -14,6 +14,19 @@ class OpenRouterSettings(BaseModel):
     model: str = "openai/gpt-oss-20b:free"
 
 
+class MongoDBSettings(BaseModel):
+    """MongoDB configuration for LangGraph checkpointer persistence."""
+
+    connection_string: str = Field(
+        default="mongodb://localhost:27017",
+        description="MongoDB connection string",
+    )
+    db_name: str = Field(
+        default="langgraph_checkpoints",
+        description="Database name for checkpoint storage",
+    )
+
+
 class VectorStoreSettings(BaseModel):
     """FAISS vector store configuration with separate indices for metadata and data."""
 
@@ -65,6 +78,9 @@ class Settings(BaseSettings):
 
     # OpenRouter - uses OPENROUTER__API_KEY, OPENROUTER__BASE_URL, etc.
     openrouter: OpenRouterSettings
+
+    # MongoDB - uses MONGODB__CONNECTION_STRING, MONGODB__DB_NAME
+    mongodb: MongoDBSettings = Field(default_factory=MongoDBSettings)
 
     # Vector Store - uses VECTOR_STORE__BASE_PATH, VECTOR_STORE__EMBEDDING_MODEL, etc.
     vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
