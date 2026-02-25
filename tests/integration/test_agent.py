@@ -1,4 +1,7 @@
-"""Tests for AI agent (BlueprintsGraph) module."""
+"""Integration tests for AI agent (BlueprintsGraph) module.
+
+Requires Docker — a real MongoDB instance is provided by testcontainers.
+"""
 
 import os
 from unittest.mock import patch
@@ -6,8 +9,9 @@ from unittest.mock import patch
 import pytest
 
 
+@pytest.mark.integration
 class TestBlueprintsGraph:
-    """Test cases for BlueprintsGraph class."""
+    """Test cases for BlueprintsGraph class with real MongoDB."""
 
     @pytest.fixture
     def mock_settings(self):

@@ -50,7 +50,7 @@ jobs:
       run: |
         uv run poe typecheck
 
-    - name: ✅ Test with Pytest
+    - name: ✅ Unit Tests
       id: pytest
       if: success() || failure()
       run: |
@@ -60,6 +60,14 @@ jobs:
           --cov=src \
           --cov-report=xml:TestResults/coverage.xml \
           --junitxml=TestResults/junit.xml
+
+    - name: 🔌 Integration Tests
+      id: pytest-integration
+      if: success() || failure()
+      run: |
+        uv run pytest -m integration \
+          -v \
+          --junitxml=TestResults/junit-integration.xml
 
     - name: 📊 Generate Coverage Report
       uses: danielpalme/ReportGenerator-GitHub-Action@v5.5.1
@@ -89,7 +97,7 @@ jobs:
       uses: EnricoMi/publish-unit-test-result-action@v2
       if: always() && steps.pytest.outcome != 'skipped'
       with:
-        files: 'TestResults/junit.xml'
+        files: 'TestResults/junit*.xml'
 
     - name: 📤 Upload Test Results
       uses: actions/upload-artifact@v6
