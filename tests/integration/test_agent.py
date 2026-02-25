@@ -26,6 +26,7 @@ class TestBlueprintsGraph:
 
             get_settings.cache_clear()
             yield Settings()
+            get_settings.cache_clear()
 
     def test_graph_initializes_with_settings(self, mock_settings) -> None:
         """BlueprintsGraph should initialize with correct settings."""

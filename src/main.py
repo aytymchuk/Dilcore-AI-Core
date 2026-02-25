@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.controllers import blueprints_router, health_router
 from api.middleware import setup_exception_handlers
 from api.openapi import setup_openapi
+from infrastructure.checkpoint.document_checkpointer import close_checkpointer
 from infrastructure.tracing import configure_tracing
 from shared.config import get_settings
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Starting %s...", settings.app_name)
     logger.info("Using model: %s", settings.openrouter.model)
     yield
+    close_checkpointer()
     logger.info("Shutting down %s...", settings.app_name)
 
 

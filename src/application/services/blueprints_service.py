@@ -54,16 +54,18 @@ class BlueprintsService:
 
     async def continue_thread(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
         """Continue an existing thread with a new message."""
+        await self._assert_thread_exists(thread_id)
         return await self._process_message(thread_id, request)
 
     async def resume(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
         """Resume a thread flow (conceptually similar to continue_thread here)."""
+        await self._assert_thread_exists(thread_id)
         return await self._process_message(thread_id, request)
 
     async def get_thread(self, thread_id: str) -> ThreadResponseDto:
         """Get the current state and messages of a thread."""
         config = {"configurable": {"thread_id": thread_id}}
-        state_tuple = self._checkpointer.get_tuple(config)
+        state_tuple = await self._checkpointer.aget_tuple(config)
 
         if not state_tuple:
             raise ResourceNotFoundError(f"Thread {thread_id} not found")
@@ -84,7 +86,7 @@ class BlueprintsService:
         """List all tracked threads."""
         threads = []
         seen_threads: set[str] = set()
-        for state_tuple in self._checkpointer.list({"configurable": {}}):
+        async for state_tuple in self._checkpointer.alist({"configurable": {}}):
             thread_id = state_tuple.config["configurable"]["thread_id"]
             if thread_id in seen_threads:
                 continue
@@ -102,6 +104,12 @@ class BlueprintsService:
             threads.append(ThreadItemDto(id=thread_id, name=name))
 
         return threads
+
+    async def _assert_thread_exists(self, thread_id: str) -> None:
+        """Raise ResourceNotFoundError if no checkpoint exists for thread_id."""
+        config = {"configurable": {"thread_id": thread_id}}
+        if not await self._checkpointer.aget_tuple(config):
+            raise ResourceNotFoundError(f"Thread {thread_id} not found")
 
     async def _process_message(self, thread_id: str, request: ThreadMessageInputDto) -> ThreadResponseDto:
         """Internal helper to invoke the supervisor with a configurable thread_id."""

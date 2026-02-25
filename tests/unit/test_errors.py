@@ -13,6 +13,7 @@ from shared.exceptions import (
     AIAgentException,
     ConfigurationError,
     LLMProviderError,
+    ResourceNotFoundError,
     ValidationError,
 )
 
@@ -118,11 +119,21 @@ class TestCustomExceptions:
         assert exc.title == "Configuration Error"
         assert exc.status_code == 500
 
+    def test_resource_not_found_error_defaults(self) -> None:
+        """ResourceNotFoundError should have correct defaults."""
+        exc = ResourceNotFoundError("Missing X")
+
+        assert exc.message == "Missing X"
+        assert exc.problem_type == "not-found"
+        assert exc.title == "Not Found"
+        assert exc.status_code == 404
+
     def test_base_exception_inheritance(self) -> None:
         """All custom exceptions should inherit from AIAgentException."""
         assert isinstance(ValidationError("test"), AIAgentException)
         assert isinstance(LLMProviderError(), AIAgentException)
         assert isinstance(ConfigurationError("test"), AIAgentException)
+        assert isinstance(ResourceNotFoundError("test"), AIAgentException)
 
 
 class TestGlobalExceptionHandlers:

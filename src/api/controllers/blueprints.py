@@ -54,7 +54,7 @@ async def continue_thread(
     service: BlueprintsServiceDep,
 ) -> ThreadResponseDto:
     """Continue an existing thread."""
-    logger.info(f"Received continue request for thread {thread_id}")
+    logger.info("Received continue request for thread %s", thread_id)
     return await service.continue_thread(thread_id, request)
 
 
@@ -76,7 +76,7 @@ async def resume_thread(
     service: BlueprintsServiceDep,
 ) -> ThreadResponseDto:
     """Resume an existing thread."""
-    logger.info(f"Received resume request for thread {thread_id}")
+    logger.info("Received resume request for thread %s", thread_id)
     return await service.resume(thread_id, request)
 
 
@@ -110,5 +110,5 @@ async def get_thread(
     service: BlueprintsServiceDep,
 ) -> ThreadResponseDto:
     """Get the specific thread by ID."""
-    logger.info(f"Getting thread {thread_id}")
+    logger.info("Getting thread %s", thread_id)
     return await service.get_thread(thread_id)
