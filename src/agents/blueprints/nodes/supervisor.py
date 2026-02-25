@@ -37,14 +37,14 @@ class SupervisorNode:
     def __init__(self, llm):
         """Initialize the node with the LLM instance."""
         self._llm = llm
+        self._structured_llm = llm.with_structured_output(LLMDecision[SupervisorDecision])
 
     async def __call__(self, state: BlueprintsState) -> Command[RouteNames]:
         """Evaluate user messages and return the next route."""
         messages = [SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT)] + state["messages"]
-        structured_llm = self._llm.with_structured_output(LLMDecision[SupervisorDecision])
 
         try:
-            output: LLMDecision[SupervisorDecision] = await structured_llm.ainvoke(messages)
+            output: LLMDecision[SupervisorDecision] = await self._structured_llm.ainvoke(messages)
             decision = output.decision
             route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
             reasoning = output.reasoning

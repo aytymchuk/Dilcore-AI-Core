@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     app_name: str = "AI Template Agent"
     app_debug: bool = False
     log_level: str = "INFO"
+    cors_origins: list[str] = Field(default=["*"], description="Allowed CORS origins")
 
     # OpenRouter - uses OPENROUTER__API_KEY, OPENROUTER__BASE_URL, etc.
     openrouter: OpenRouterSettings

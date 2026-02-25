@@ -38,7 +38,7 @@ jobs:
 
     - name: 🎨 Check Formatting
       run: |
-        uv run ruff format --check src tests
+        uv run poe format
 
     - name: 🔍 Lint with Ruff
       if: success() || failure()

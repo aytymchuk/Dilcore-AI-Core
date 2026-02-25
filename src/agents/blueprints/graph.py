@@ -6,8 +6,9 @@ Compiles a routing supervisor graph that connects to:
 - generation ("generate" sub-graph)
 """
 
+from __future__ import annotations
+
 import logging
-from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 
@@ -23,16 +24,9 @@ from agents.blueprints.sub_agents.ask.graph import build_ask_graph
 from agents.blueprints.sub_agents.generate.graph import build_generate_graph
 from infrastructure.checkpoint.document_checkpointer import get_checkpointer
 from infrastructure.llm import create_llm
-from shared.config import Settings, get_settings
-
-RouteNames = Literal["ask", "identify_intent", "generate"]
+from shared.config import Settings
 
 logger = logging.getLogger(__name__)
-
-
-# Compile sub-graphs
-ask_graph = build_ask_graph()
-generate_graph = build_generate_graph()
 
 
 class BlueprintsGraph:
@@ -52,11 +46,10 @@ class BlueprintsGraph:
         """Build and compile the Supervisor LangGraph."""
         builder = StateGraph(BlueprintsState)
 
-        # Add the nodes/sub-graphs
         builder.add_node("supervisor", SupervisorNode(self._llm))
-        builder.add_node(ASK_ROUTE, ask_graph)
+        builder.add_node(ASK_ROUTE, build_ask_graph())
         builder.add_node(IDENTIFY_INTENT_ROUTE, IdentifyIntentNode())
-        builder.add_node(GENERATE_ROUTE, generate_graph)
+        builder.add_node(GENERATE_ROUTE, build_generate_graph())
 
         builder.add_edge(ASK_ROUTE, END)
         builder.add_edge(IDENTIFY_INTENT_ROUTE, END)
@@ -71,5 +64,19 @@ class BlueprintsGraph:
         return await self._graph.ainvoke(state, config)
 
 
-# Expose compiled StateGraph for LangGraph Studio/CLI
-graph = BlueprintsGraph(get_settings())._graph
+# ---------------------------------------------------------------------------
+# Lazy entrypoint for LangGraph Studio / CLI
+# ---------------------------------------------------------------------------
+_graph = None
+
+
+def __getattr__(name: str):
+    """Lazily construct the compiled graph on first access."""
+    global _graph  # noqa: PLW0603
+    if name == "graph":
+        if _graph is None:
+            from shared.config import get_settings
+
+            _graph = BlueprintsGraph(get_settings())._graph
+        return _graph
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

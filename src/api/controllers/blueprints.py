@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/v1/blueprints", tags=["Blueprints Agent"])
 @router.post(
     "/start",
     response_model=ThreadResponseDto,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_201_CREATED,
     summary="Start a new blueprint generation thread",
     description="Starts a new thread and routes the user's initial message through the supervisor.",
     responses={
@@ -43,6 +43,7 @@ async def start_thread(
     summary="Continue a thread",
     description="Send a message to an existing thread.",
     responses={
+        404: {"description": "Thread not found", "model": ProblemDetails},
         422: {"description": "Validation error", "model": ProblemDetails},
         500: {"description": "Internal error", "model": ProblemDetails},
     },
@@ -64,6 +65,7 @@ async def continue_thread(
     summary="Resume a thread",
     description="Resume a paused or interrupted thread flow.",
     responses={
+        404: {"description": "Thread not found", "model": ProblemDetails},
         422: {"description": "Validation error", "model": ProblemDetails},
         500: {"description": "Internal error", "model": ProblemDetails},
     },
@@ -99,6 +101,9 @@ async def get_threads(
     status_code=status.HTTP_200_OK,
     summary="Get thread status",
     description="Retrieve the current state and messages of a specific thread.",
+    responses={
+        404: {"description": "Thread not found", "model": ProblemDetails},
+    },
 )
 async def get_thread(
     thread_id: str,

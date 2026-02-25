@@ -56,6 +56,19 @@ class LLMProviderError(AIAgentException):
         )
 
 
+class ResourceNotFoundError(AIAgentException):
+    """Raised when a requested resource does not exist."""
+
+    def __init__(self, message: str = "Resource not found") -> None:
+        """Initialize resource not found error."""
+        super().__init__(
+            message=message,
+            problem_type="not-found",
+            title="Not Found",
+            status_code=404,
+        )
+
+
 class ConfigurationError(AIAgentException):
     """Raised when service configuration is invalid."""
 
