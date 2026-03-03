@@ -20,28 +20,32 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 ### Installation
 
 1. **Clone and navigate to the project**
+
    ```bash
    cd /path/to/AI\ POC
    ```
 
 2. **Setup environment and install dependencies**
+
    ```bash
    uv sync --all-groups
    ```
 
-4. **Configure environment**
+3. **Configure environment**
+
    ```bash
    cp .env.example .env
    # Edit .env and add your OPENROUTER_API_KEY
    ```
 
-5. **Run the server**
+4. **Run the server**
+
    ```bash
    uv run uvicorn src.ai_agent.main:app --reload
    ```
 
-6. **Open API docs**
-   - Navigate to http://localhost:8000/scalar
+5. **Open API docs**
+   - Navigate to <http://localhost:8000/scalar>
 
 ## API Endpoints
 
@@ -72,6 +76,7 @@ curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
 ```
 
 **Event Types:**
+
 - `thinking` - Reasoning content (if model supports thinking mode)
 - `content` - Generation content chunks
 - `template` - Final structured template with explanation
@@ -134,13 +139,38 @@ LOG_LEVEL=DEBUG uv run uvicorn src.ai_agent.main:app --reload
 
 ```bash
 # Run all tests
+uv run poe test
+
+# Alternatively with uv run pytest
 uv run pytest tests/ -v
+```
 
-# Run with coverage (generates TestResults/coverage.xml)
-uv run pytest tests/ -v --cov=src/ai_agent --cov-report=xml
+### Development Tools
 
-# Run specific test file
-uv run pytest tests/test_streaming.py -v
+This project uses `poethepoet` for task management. You can run these tasks with `uv run poe <task>`:
+
+```bash
+# Format code (ruff format)
+uv run poe format
+
+# Lint code (ruff check)
+uv run poe lint
+
+# Typecheck code (mypy)
+uv run poe typecheck
+
+# Run all checks (format, lint, typecheck, test)
+uv run poe check
+```
+
+We also have convenience scripts for common tasks:
+
+```bash
+# Activate the virtual environment
+./scripts/connect.sh
+
+# Run all checks (format, lint, typecheck, test)
+./scripts/check.sh
 ```
 
 ### API Testing

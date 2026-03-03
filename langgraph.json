@@ -1,0 +1,9 @@
+{
+    "dependencies": [
+        "."
+    ],
+    "graphs": {
+        "blueprints": "./src/agents/blueprints/graph.py:graph"
+    },
+    "env": ".env"
+}

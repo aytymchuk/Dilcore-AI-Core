@@ -34,31 +34,51 @@ jobs:
 
     - name: 📦 Install dependencies
       run: |
-        uv sync --all-extras --dev
+        uv sync --locked --all-extras --dev
+
+    - name: 🎨 Check Formatting
+      run: |
+        uv run poe format
 
     - name: 🔍 Lint with Ruff
+      if: success() || failure()
       run: |
-        uv run --with ruff ruff check src tests
+        uv run poe lint
 
-    - name: ✅ Test with Pytest
+    - name: 📝 Typecheck with Mypy
+      if: success() || failure()
+      run: |
+        uv run poe typecheck
+
+    - name: ✅ Unit Tests
+      id: pytest
+      if: success() || failure()
       run: |
         mkdir -p TestResults
-        uv run --with pytest pytest \
+        uv run pytest \
           -v \
           --cov=src \
           --cov-report=xml:TestResults/coverage.xml \
           --junitxml=TestResults/junit.xml
 
+    - name: 🔌 Integration Tests
+      id: pytest-integration
+      if: success() || failure()
+      run: |
+        uv run pytest -m integration \
+          -v \
+          --junitxml=TestResults/junit-integration.xml
+
     - name: 📊 Generate Coverage Report
       uses: danielpalme/ReportGenerator-GitHub-Action@v5.5.1
-      if: always()
+      if: always() && steps.pytest.outcome != 'skipped'
       with:
         reports: 'TestResults/coverage.xml'
         targetdir: 'coveragereport'
         reporttypes: 'HtmlInline;MarkdownSummaryGithub'
 
     - name: 📝 Add Coverage Summary
-      if: always()
+      if: always() && steps.pytest.outcome != 'skipped'
       run: |
         if [ -f coveragereport/SummaryGithub.md ]; then
           cat coveragereport/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
@@ -68,20 +88,20 @@ jobs:
 
     - name: 📤 Upload Coverage Report
       uses: actions/upload-artifact@v6
-      if: always()
+      if: always() && steps.pytest.outcome != 'skipped'
       with:
         name: coverage-report
         path: coveragereport
 
     - name: 📋 Publish Test Results
       uses: EnricoMi/publish-unit-test-result-action@v2
-      if: always()
+      if: always() && steps.pytest.outcome != 'skipped'
       with:
-        files: 'TestResults/junit.xml'
+        files: 'TestResults/junit*.xml'
 
     - name: 📤 Upload Test Results
       uses: actions/upload-artifact@v6
-      if: always()
+      if: always() && steps.pytest.outcome != 'skipped'
       with:
         name: test-results
         path: TestResults
