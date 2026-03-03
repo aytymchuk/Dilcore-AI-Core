@@ -87,7 +87,7 @@ jobs:
         fi
 
     - name: 📤 Upload Coverage Report
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always() && steps.pytest.outcome != 'skipped'
       with:
         name: coverage-report
@@ -100,7 +100,7 @@ jobs:
         files: 'TestResults/junit*.xml'
 
     - name: 📤 Upload Test Results
-      uses: actions/upload-artifact@v6
+      uses: actions/upload-artifact@v7
       if: always() && steps.pytest.outcome != 'skipped'
       with:
         name: test-results
