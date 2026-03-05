@@ -1,19 +1,22 @@
 """Blueprints LangGraph — Supervisor wiring.
 
 Compiles a routing supervisor graph that connects to:
-- intent resolution
-- guidance ("ask" sub-graph)
-- generation ("generate" sub-graph)
+- ask (FAQ / guidance)
+- design (collaborative blueprint planning)
+- generate (plan-confirm-execute loop)
+- identify_intent (fallback for unclear messages)
 """
 
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from langgraph.graph import END, START, StateGraph
 
 from agents.blueprints.nodes import (
     ASK_ROUTE,
+    DESIGN_ROUTE,
     GENERATE_ROUTE,
     IDENTIFY_INTENT_ROUTE,
     IdentifyIntentNode,
@@ -21,6 +24,7 @@ from agents.blueprints.nodes import (
 )
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.ask.graph import build_ask_graph
+from agents.blueprints.sub_agents.design.graph import build_design_graph
 from agents.blueprints.sub_agents.generate.graph import build_generate_graph
 from infrastructure.checkpoint.document_checkpointer import get_checkpointer
 from infrastructure.llm import create_llm
@@ -48,10 +52,12 @@ class BlueprintsGraph:
 
         builder.add_node("supervisor", SupervisorNode(self._llm))
         builder.add_node(ASK_ROUTE, build_ask_graph())
+        builder.add_node(DESIGN_ROUTE, build_design_graph())
         builder.add_node(IDENTIFY_INTENT_ROUTE, IdentifyIntentNode())
         builder.add_node(GENERATE_ROUTE, build_generate_graph())
 
         builder.add_edge(ASK_ROUTE, END)
+        builder.add_edge(DESIGN_ROUTE, END)
         builder.add_edge(IDENTIFY_INTENT_ROUTE, END)
         builder.add_edge(GENERATE_ROUTE, END)
 
@@ -59,9 +65,13 @@ class BlueprintsGraph:
 
         return builder.compile(checkpointer=get_checkpointer())
 
-    async def ainvoke(self, state: dict, config: dict | None = None) -> dict:
-        """Invoke the graph with state."""
+    async def ainvoke(self, state: dict | Any, config: dict | None = None) -> dict:
+        """Invoke the graph with state dict or a Command (e.g. resume from interrupt)."""
         return await self._graph.ainvoke(state, config)
+
+    async def aget_state(self, config: dict):
+        """Return the current StateSnapshot for a thread."""
+        return await self._graph.aget_state(config)
 
 
 # ---------------------------------------------------------------------------

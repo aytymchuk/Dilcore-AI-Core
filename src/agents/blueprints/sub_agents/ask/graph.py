@@ -1,23 +1,30 @@
 """Ask sub-graph for providing guidance and information about blueprints."""
 
-from langchain.agents import create_agent
+from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from agents.blueprints.sub_agents.ask.prompts import ASK_SYSTEM_PROMPT
-from agents.blueprints.sub_agents.ask.tools import get_blueprint_configuration_info
-from infrastructure.llm import create_creative_llm
+from agents.blueprints.state import BlueprintsState
+from agents.blueprints.sub_agents.ask.nodes import AskAgentNode
 from shared.config import get_settings
 
 
+def _create_nodes(settings):
+    """Instantiate all Ask sub-graph nodes."""
+    return {
+        "ask_agent": AskAgentNode.from_settings(settings),
+    }
+
+
 def build_ask_graph() -> CompiledStateGraph:
-    """Build and compile the Ask sub-graph using a ReAct agent."""
+    """Build and compile the Ask sub-graph."""
     settings = get_settings()
-    llm = create_creative_llm(settings, streaming=False)
+    nodes = _create_nodes(settings)
 
-    tools = [get_blueprint_configuration_info]
+    workflow = StateGraph(BlueprintsState)
+    for name, node in nodes.items():
+        workflow.add_node(name, node)
 
-    return create_agent(
-        model=llm,
-        tools=tools,
-        system_prompt=ASK_SYSTEM_PROMPT,
-    )
+    workflow.set_entry_point("ask_agent")
+    workflow.add_edge("ask_agent", END)
+
+    return workflow.compile()
