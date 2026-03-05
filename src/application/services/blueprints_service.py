@@ -166,7 +166,7 @@ class BlueprintsService:
         )
         return await self._build_response(thread_id, config, result)
 
-    async def get_thread(self, thread_id: str) -> ThreadResponseDto:
+    async def get_thread(self, thread_id: str) -> ThreadResponseDto | InterruptResponseDto:
         """Get the current state and messages of a thread."""
         config = {"configurable": {"thread_id": thread_id}}
         state = await self._graph.aget_state(config)
@@ -174,10 +174,17 @@ class BlueprintsService:
         if not state or not state.values:
             raise ResourceNotFoundError(f"Thread {thread_id} not found")
 
-        return ThreadResponseDto(
-            id=thread_id,
-            messages=_format_messages(state.values),
-        )
+        messages = _format_messages(state.values)
+        interrupts = _extract_interrupts(state)
+
+        if interrupts:
+            return InterruptResponseDto(
+                id=thread_id,
+                interrupts=interrupts,
+                messages=messages,
+            )
+
+        return ThreadResponseDto(id=thread_id, messages=messages)
 
     async def get_threads(self) -> list[ThreadItemDto]:
         """List all tracked threads."""

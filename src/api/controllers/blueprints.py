@@ -110,10 +110,13 @@ async def get_threads(
 
 @router.get(
     "/threads/{thread_id}",
-    response_model=ThreadResponseDto,
+    response_model=ThreadResponseDto | InterruptResponseDto,
     status_code=status.HTTP_200_OK,
     summary="Get thread status",
-    description="Retrieve the current state and messages of a specific thread.",
+    description=(
+        "Retrieve the current state and messages of a specific thread. "
+        "Returns an InterruptResponseDto if the thread is paused at an interrupt."
+    ),
     responses={
         404: {"description": "Thread not found", "model": ProblemDetails},
     },
@@ -121,7 +124,7 @@ async def get_threads(
 async def get_thread(
     thread_id: str,
     service: BlueprintsServiceDep,
-) -> ThreadResponseDto:
+) -> ThreadResponseDto | InterruptResponseDto:
     """Get the specific thread by ID."""
     logger.info("Getting thread %s", thread_id)
     return await service.get_thread(thread_id)
