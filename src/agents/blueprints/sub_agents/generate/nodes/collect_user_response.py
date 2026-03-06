@@ -21,27 +21,6 @@ from agents.blueprints.models import (
 from agents.blueprints.state import BlueprintsState
 
 
-def _build_interrupt_value(state: BlueprintsState) -> list[HumanInterrupt]:
-    plan = state.get("generation_plan", [])
-    plan_dicts = [p.model_dump() if hasattr(p, "model_dump") else dict(p) for p in plan]
-
-    return [
-        HumanInterrupt(
-            action_request=ActionRequest(
-                action="confirm_plan",
-                args={"plan": plan_dicts},
-            ),
-            config=HumanInterruptConfig(
-                allow_ignore=False,
-                allow_respond=True,
-                allow_edit=True,
-                allow_accept=True,
-            ),
-            description="Review and confirm the generation plan.",
-        )
-    ]
-
-
 class CollectUserResponseNode:
     """Pauses the graph and waits for the user to confirm or correct the plan.
 
@@ -54,8 +33,28 @@ class CollectUserResponseNode:
     - ``edit``    -> serialises the edited ``ActionRequest`` as a ``HumanMessage``.
     """
 
+    def _build_interrupt_value(self, state: BlueprintsState) -> list[HumanInterrupt]:
+        plan = state.get("generation_plan", [])
+        plan_dicts = [p.model_dump() if hasattr(p, "model_dump") else dict(p) for p in plan]
+
+        return [
+            HumanInterrupt(
+                action_request=ActionRequest(
+                    action="confirm_plan",
+                    args={"plan": plan_dicts},
+                ),
+                config=HumanInterruptConfig(
+                    allow_ignore=False,
+                    allow_respond=True,
+                    allow_edit=True,
+                    allow_accept=True,
+                ),
+                description="Review and confirm the generation plan.",
+            )
+        ]
+
     async def __call__(self, state: BlueprintsState) -> dict:
-        interrupt_value = _build_interrupt_value(state)
+        interrupt_value = self._build_interrupt_value(state)
         response: HumanResponse = interrupt(interrupt_value)[0]
 
         resp_type = response.get("type", "response") if isinstance(response, dict) else "response"

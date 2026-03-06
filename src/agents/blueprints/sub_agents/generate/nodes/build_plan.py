@@ -22,25 +22,24 @@ from shared.utils import format_conversation
 
 logger = logging.getLogger(__name__)
 
-_REFERENCE_TOOLS = [get_agent_rules, get_entity_api_reference, get_field_api_reference]
-
-
-def _load_reference_context() -> str:
-    """Eagerly invoke all reference tools and concatenate their output."""
-    sections: list[str] = []
-    for t in _REFERENCE_TOOLS:
-        try:
-            sections.append(t.invoke({}))
-        except Exception:
-            logger.warning("Failed to load reference tool %s", t.name, exc_info=True)
-    return "\n\n---\n\n".join(sections)
-
 
 class BuildPlanNode:
     """Analyzes conversation + design context and produces a generation plan."""
 
+    _REFERENCE_TOOLS = [get_agent_rules, get_entity_api_reference, get_field_api_reference]
+
     def __init__(self, settings: Settings):
         self._structured_llm = create_llm(settings).with_structured_output(GenerationPlan)
+
+    def _load_reference_context(self) -> str:
+        """Eagerly invoke all reference tools and concatenate their output."""
+        sections: list[str] = []
+        for t in self._REFERENCE_TOOLS:
+            try:
+                sections.append(t.invoke({}))
+            except Exception:
+                logger.warning("Failed to load reference tool %s", t.name, exc_info=True)
+        return "\n\n---\n\n".join(sections)
 
     async def __call__(self, state: BlueprintsState) -> dict:
         design_context = state.get("design_context", "")
@@ -49,7 +48,7 @@ class BuildPlanNode:
         if design_context:
             context_parts.append(f"Design context:\n{design_context}")
 
-        reference = _load_reference_context()
+        reference = self._load_reference_context()
         if reference:
             context_parts.append(f"API Reference Material:\n{reference}")
 

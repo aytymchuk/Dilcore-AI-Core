@@ -51,10 +51,10 @@ class BlueprintsGraph:
         builder = StateGraph(BlueprintsState)
 
         builder.add_node("supervisor", SupervisorNode(self._llm))
-        builder.add_node(ASK_ROUTE, build_ask_graph())
-        builder.add_node(DESIGN_ROUTE, build_design_graph())
+        builder.add_node(ASK_ROUTE, build_ask_graph(self._settings))
+        builder.add_node(DESIGN_ROUTE, build_design_graph(self._settings))
         builder.add_node(IDENTIFY_INTENT_ROUTE, IdentifyIntentNode())
-        builder.add_node(GENERATE_ROUTE, build_generate_graph())
+        builder.add_node(GENERATE_ROUTE, build_generate_graph(self._settings))
 
         builder.add_edge(ASK_ROUTE, END)
         builder.add_edge(DESIGN_ROUTE, END)

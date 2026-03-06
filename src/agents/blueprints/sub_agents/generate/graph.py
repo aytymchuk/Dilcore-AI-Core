@@ -20,7 +20,7 @@ from agents.blueprints.sub_agents.generate.nodes import (
     PresentPlanNode,
     WriteSuccessNode,
 )
-from shared.config import get_settings
+from shared.config import Settings
 
 
 def _should_loop(state: BlueprintsState) -> str:
@@ -30,21 +30,17 @@ def _should_loop(state: BlueprintsState) -> str:
     return "build_plan"
 
 
-def _create_nodes(settings):
-    """Instantiate all Generate sub-graph nodes."""
-    return {
+def build_generate_graph(settings: Settings) -> CompiledStateGraph:
+    """Build and compile the Generate sub-graph with HITL confirmation loop."""
+    from typing import Any
+
+    nodes: dict[str, Any] = {
         "build_plan": BuildPlanNode(settings),
         "present_plan": PresentPlanNode(),
         "collect_response": CollectUserResponseNode(),
         "handle_response": HandleResponseNode(settings),
         "write_success": WriteSuccessNode(),
     }
-
-
-def build_generate_graph() -> CompiledStateGraph:
-    """Build and compile the Generate sub-graph with HITL confirmation loop."""
-    settings = get_settings()
-    nodes = _create_nodes(settings)
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():

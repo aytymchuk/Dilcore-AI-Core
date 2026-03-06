@@ -5,20 +5,16 @@ from langgraph.graph.state import CompiledStateGraph
 
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.ask.nodes import AskAgentNode
-from shared.config import get_settings
+from shared.config import Settings
 
 
-def _create_nodes(settings):
-    """Instantiate all Ask sub-graph nodes."""
-    return {
+def build_ask_graph(settings: Settings) -> CompiledStateGraph:
+    """Build and compile the Ask sub-graph."""
+    from typing import Any
+
+    nodes: dict[str, Any] = {
         "ask_agent": AskAgentNode.from_settings(settings),
     }
-
-
-def build_ask_graph() -> CompiledStateGraph:
-    """Build and compile the Ask sub-graph."""
-    settings = get_settings()
-    nodes = _create_nodes(settings)
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():

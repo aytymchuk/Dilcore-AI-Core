@@ -8,21 +8,17 @@ from agents.blueprints.sub_agents.design.nodes import (
     DesignAgentNode,
     UpdateDesignContextNode,
 )
-from shared.config import get_settings
+from shared.config import Settings
 
 
-def _create_nodes(settings):
-    """Instantiate all Design sub-graph nodes."""
-    return {
+def build_design_graph(settings: Settings) -> CompiledStateGraph:
+    """Build and compile the Design sub-graph."""
+    from typing import Any
+
+    nodes: dict[str, Any] = {
         "design_agent": DesignAgentNode.from_settings(settings),
         "update_design_context": UpdateDesignContextNode(settings),
     }
-
-
-def build_design_graph() -> CompiledStateGraph:
-    """Build and compile the Design sub-graph."""
-    settings = get_settings()
-    nodes = _create_nodes(settings)
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():
