@@ -1,6 +1,10 @@
 # Use a Python image with uv pre-installed
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 
+# Build version argument
+ARG BUILD_VERSION=0.0.0
+ENV APP_VERSION=$BUILD_VERSION
+
 # Install the project into `/app`
 WORKDIR /app
 

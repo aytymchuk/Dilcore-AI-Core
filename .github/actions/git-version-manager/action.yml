@@ -1,0 +1,112 @@
+name: 'Git Version Manager'
+description: 'Calculates the next semantic version based on git tags'
+inputs:
+  mode:
+    description: 'Mode of operation: extract or calculate'
+    required: false
+    default: 'calculate'
+  tag-name:
+    description: 'Tag name identifier (prefix before .vX.Y.Z)'
+    required: false
+    default: ''
+  bump-type:
+    description: 'Type of version bump: major, minor, patch'
+    required: false
+    default: 'patch'
+
+outputs:
+  version:
+    description: 'Calculated semantic version (e.g., 1.0.1)'
+    value: ${{ steps.calc.outputs.version }}
+  tag:
+    description: 'Full tag string (e.g., ai-agent.v1.0.1)'
+    value: ${{ steps.calc.outputs.tag }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Calculate Version
+      id: calc
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        MODE="${{ inputs.mode }}"
+        TAG_NAME="${{ inputs.tag-name }}"
+        BUMP_TYPE="${{ inputs.bump-type }}"
+
+        # Construct prefix with separator if tag-name is present
+        if [[ -n "$TAG_NAME" ]]; then
+          PREFIX="${TAG_NAME}."
+        else
+          PREFIX=""
+        fi
+
+        if [[ "$MODE" == "extract" ]]; then
+          REF="${GITHUB_REF#refs/tags/}"
+
+          if [[ -n "$PREFIX" ]]; then
+            if [[ "$REF" != "$PREFIX"* ]]; then
+               echo "::error::Current tag '$REF' does not start with expected prefix '$PREFIX'"
+               exit 1
+            fi
+            VERSION_TAG="${REF#$PREFIX}"
+          else
+            VERSION_TAG="$REF"
+          fi
+
+          VERSION="${VERSION_TAG#v}"
+
+          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+             echo "::error::Extracted version '$VERSION' is not valid SemVer X.Y.Z"
+             exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$REF" >> $GITHUB_OUTPUT
+
+        else
+          git fetch --tags --force
+
+          PATTERN="${PREFIX}v[0-9]*.[0-9]*.[0-9]*"
+          LATEST_TAG=$(git tag -l "$PATTERN" | sort -V | tail -n 1 || echo "")
+
+          if [ -z "$LATEST_TAG" ]; then
+             LATEST_TAG="${PREFIX}v0.0.0"
+          fi
+
+          VERSION_TAG="${LATEST_TAG#$PREFIX}"
+          VERSION="${VERSION_TAG#v}"
+
+          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::error::Latest tag version '$VERSION' is not strict semver (expected MAJOR.MINOR.PATCH)."
+            exit 1
+          fi
+
+          # Use regex to capture groups
+          if [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            MAJOR="${BASH_REMATCH[1]}"
+            MINOR="${BASH_REMATCH[2]}"
+            PATCH="${BASH_REMATCH[3]}"
+          fi
+
+          if [[ "$BUMP_TYPE" == "major" ]]; then
+            NEW_MAJOR=$((MAJOR + 1))
+            NEW_MINOR=0
+            NEW_PATCH=0
+          elif [[ "$BUMP_TYPE" == "minor" ]]; then
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$((MINOR + 1))
+            NEW_PATCH=0
+          else
+            NEW_MAJOR=$MAJOR
+            NEW_MINOR=$MINOR
+            NEW_PATCH=$((PATCH + 1))
+          fi
+
+          NEW_VERSION="$NEW_MAJOR.$NEW_MINOR.$NEW_PATCH"
+          NEW_TAG="${PREFIX}v${NEW_VERSION}"
+
+          echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+        fi
