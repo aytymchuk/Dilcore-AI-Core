@@ -1,0 +1,18 @@
+.venv/
+.git/
+.github/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+TestResults/
+coveragereport/
+data/
+# We copy uv.lock explicitly if needed, but usually we want to ignore it
+# from the general COPY . /app if we already handled it.
+# Actually, uv.lock is needed for uv sync.
