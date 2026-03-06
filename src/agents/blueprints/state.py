@@ -5,7 +5,7 @@ The state is a TypedDict that flows through every node in the graph.
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, NotRequired
 
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
@@ -26,8 +26,8 @@ class BlueprintsState(TypedDict):
         generation_plan_confirmed: Whether the user has confirmed the plan.
     """
 
-    messages: Annotated[list[BaseMessage], add_messages]
-    current_phase: PhaseType
-    design_context: str
-    generation_plan: list[PlanAction]
-    generation_plan_confirmed: bool
+    messages: NotRequired[Annotated[list[BaseMessage], add_messages]]
+    current_phase: NotRequired[PhaseType]
+    design_context: NotRequired[list[str]]
+    generation_plan: NotRequired[list[PlanAction]]
+    generation_plan_confirmed: NotRequired[bool]

@@ -2,15 +2,11 @@
 
 from agents.blueprints.constants import ASK_AGENT
 from agents.blueprints.sub_agents.ask.prompts import ASK_SYSTEM_PROMPT
-from agents.blueprints.sub_agents.ask.tools import (
-    get_common_blueprint_info,
-    get_entity_info,
-    get_field_info,
-)
 from agents.blueprints.sub_agents.react_agent_node import ReActAgentNode
+from agents.blueprints.sub_agents.shared.tools import COMMON_BLUEPRINT_TOOLS
 from shared.config import Settings
 
-ASK_TOOLS = [get_common_blueprint_info, get_entity_info, get_field_info]
+ASK_TOOLS = COMMON_BLUEPRINT_TOOLS
 
 
 class AskAgentNode(ReActAgentNode):

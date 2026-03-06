@@ -10,9 +10,9 @@ Compiles a routing supervisor graph that connects to:
 from __future__ import annotations
 
 import logging
-from typing import Any
 
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import Command
 
 from agents.blueprints.nodes import (
     ASK_ROUTE,
@@ -65,7 +65,7 @@ class BlueprintsGraph:
 
         return builder.compile(checkpointer=get_checkpointer())
 
-    async def ainvoke(self, state: dict | Any, config: dict | None = None) -> dict:
+    async def ainvoke(self, state: dict | Command, config: dict | None = None) -> dict:
         """Invoke the graph with state dict or a Command (e.g. resume from interrupt)."""
         return await self._graph.ainvoke(state, config)
 

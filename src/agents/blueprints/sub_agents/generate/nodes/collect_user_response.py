@@ -8,6 +8,7 @@ accept / respond / edit.
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langgraph.types import interrupt
@@ -16,7 +17,6 @@ from agents.blueprints.models import (
     ActionRequest,
     HumanInterrupt,
     HumanInterruptConfig,
-    HumanResponse,
 )
 from agents.blueprints.state import BlueprintsState
 
@@ -55,7 +55,7 @@ class CollectUserResponseNode:
 
     async def __call__(self, state: BlueprintsState) -> dict:
         interrupt_value = self._build_interrupt_value(state)
-        response: HumanResponse = interrupt(interrupt_value)[0]
+        response: Any = interrupt(interrupt_value)[0]
 
         resp_type = response.get("type", "response") if isinstance(response, dict) else "response"
 

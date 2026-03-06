@@ -52,7 +52,28 @@ class ResumeInputDto(BaseModel):
     )
 
     @model_validator(mode="after")
-    def _require_type_or_message(self) -> ResumeInputDto:
-        if self.type is None and not self.message:
-            raise ValueError("Either 'type' or 'message' must be provided.")
+    def _validate_and_normalize(self) -> ResumeInputDto:
+        # 1. Normalize message-only input
+        if self.type is None:
+            if not self.message:
+                raise ValueError("Either 'type' or 'message' must be provided.")
+            self.type = "response"
+            self.args = self.message
+
+        # 2. Validate combinations
+        if self.type == "edit":
+            if not isinstance(self.args, ActionRequestDto):
+                raise ValueError("For 'edit' response, 'args' must be an ActionRequest object.")
+        elif self.type == "response":
+            if self.args is not None and not isinstance(self.args, str):
+                raise ValueError("For 'response', 'args' must be a string or null.")
+        elif self.type in ("accept", "ignore") and self.args is not None:
+            raise ValueError(f"Response type '{self.type}' cannot have 'args'.")
+
+        # 3. Ensure mutual exclusivity of message and type (when type was explicitly set)
+        # Actually, if type was None, we just set it. If it was provided, message should be null.
+        if self.message and self.type != "response":
+            # This is a bit strict, but follows the instruction "when type is set message must be null"
+            raise ValueError("Provide either 'message' (for plain text response) OR 'type' + 'args'.")
+
         return self

@@ -20,6 +20,6 @@ async def test_write_success_node_returns_success_msg():
     assert len(result["messages"]) == 1
     msg = result["messages"][0]
     assert isinstance(msg, AIMessage)
-    assert "successfully" in msg.content
+    assert "planned and simulated" in msg.content
     assert "skeleton" in msg.content
     assert "1 action(s)" in msg.content

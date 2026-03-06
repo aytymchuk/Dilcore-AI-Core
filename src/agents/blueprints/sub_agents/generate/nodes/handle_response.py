@@ -34,7 +34,12 @@ class HandleResponseNode:
         last_human_msg = ""
         for msg in reversed(state["messages"]):
             if isinstance(msg, HumanMessage):
-                last_human_msg = msg.content
+                if isinstance(msg.content, list):
+                    last_human_msg = " ".join(
+                        part.get("text", "") if isinstance(part, dict) else str(part) for part in msg.content
+                    )
+                else:
+                    last_human_msg = str(msg.content)
                 break
 
         try:

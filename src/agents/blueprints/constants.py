@@ -16,7 +16,7 @@ DESIGN_ROUTE = "design"
 GENERATE_ROUTE = "generate"
 IDENTIFY_INTENT_ROUTE = "identify_intent"
 
-ALL_ROUTES = {ASK_ROUTE, DESIGN_ROUTE, GENERATE_ROUTE, IDENTIFY_INTENT_ROUTE}
+ALL_ROUTES = frozenset([ASK_ROUTE, DESIGN_ROUTE, GENERATE_ROUTE, IDENTIFY_INTENT_ROUTE])
 
 RouteNames = Literal["ask", "design", "generate", "identify_intent"]
 

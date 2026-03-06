@@ -15,7 +15,7 @@ class WriteSuccessNode:
         message = AIMessage(
             content=(
                 f"Generation plan confirmed. All {count} action(s) have been "
-                f"completed successfully.\n\n"
+                f"planned and simulated.\n\n"
                 f"This is a skeleton response — actual execution will be implemented "
                 f"in the next phase."
             ),

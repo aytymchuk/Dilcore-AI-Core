@@ -42,25 +42,24 @@ class BuildPlanNode:
         return "\n\n---\n\n".join(sections)
 
     async def __call__(self, state: BlueprintsState) -> dict:
-        design_context = state.get("design_context", "")
-
-        context_parts: list[str] = []
-        if design_context:
-            context_parts.append(f"Design context:\n{design_context}")
+        design_context = state.get("design_context", [])
 
         reference = self._load_reference_context()
+        system_prompt = GENERATE_PLANNER_PROMPT
         if reference:
-            context_parts.append(f"API Reference Material:\n{reference}")
+            system_prompt += f"\n\nAPI Reference Material:\n{reference}"
 
-        context_block = "\n\n" + "\n\n".join(context_parts) if context_parts else ""
         conversation = format_conversation(state["messages"])
-        prompt = GENERATE_PLANNER_PROMPT + context_block
+        human_content = conversation
+        if design_context:
+            context_str = "\n".join(f"- {ctx}" for ctx in design_context)
+            human_content = f"Design context:\n{context_str}\n\n---\n\n{conversation}"
 
         try:
             plan: GenerationPlan = await self._structured_llm.ainvoke(
                 [
-                    SystemMessage(content=prompt),
-                    HumanMessage(content=conversation),
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=human_content),
                 ]
             )
             actions = plan.actions

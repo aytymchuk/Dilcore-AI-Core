@@ -76,7 +76,7 @@ All endpoints require authentication and the `x-tenant` header.
 |---|---|---|
 | `id` | GUID | Unique identifier assigned at creation. |
 | `eTag` | long | Version counter for optimistic concurrency. Every mutation increments this value. Clients must send the current eTag on updates. |
-| `schemaName` | string | Immutable, camelCase storage identifier. Auto-generated from `displayName` at creation. Never changes. |
+| `schemaName` | string | Immutable, camelCase storage identifier. Client-settable override on create; if omitted, server generates from `displayName`. Never changes after creation. |
 | `displayName` | string | Human-readable name. 2–128 characters. |
 | `description` | string or null | Purpose of this entity type. Max 200 characters. |
 | `isAbstract` | boolean | When `true`, entity is a base type meant to be extended, not used directly. |
@@ -92,6 +92,7 @@ All endpoints require authentication and the `x-tenant` header.
 
 - Non-alphanumeric characters are treated as word separators
 - First word is fully lowercased, subsequent words are capitalized (camelCase)
+- **Override on create**: Clients may explicitly provide a `schemaName` in the `POST` request to override auto-generation.
 
 | Display Name | Generated Schema Name |
 |---|---|

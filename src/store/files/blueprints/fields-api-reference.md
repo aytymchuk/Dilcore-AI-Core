@@ -30,7 +30,7 @@ Technical reference for field definitions within entity types. Used by the Gener
 
 | Property | Type | Required on Create | Required on Update | Description |
 |---|---|---|---|---|
-| `schemaName` | string | No | No (recommended for existing fields) | Immutable storage identifier. Auto-generated from `displayName` if omitted. Include on updates to preserve field identity. |
+| `schemaName` | string | No | Yes (if preserving identity) | Immutable storage identifier. Auto-generated from `displayName` if omitted. Include on updates to preserve field identity; omitting it triggers creation of a replacement field. |
 | `displayName` | string | Yes | Yes | Human-readable name. 2–128 characters, at least one alphanumeric character. |
 | `type` | string | Yes | Yes | Data type. See Field Types below. |
 | `fields` | array or null | Only for Object/Array | Only for Object/Array | Nested field definitions. Required (min 1) for complex types. Must be null or absent for primitives. |

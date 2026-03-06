@@ -137,8 +137,22 @@ class BlueprintsService:
         """Continue an existing thread with a new message.
 
         Always starts from the supervisor so the user's new intent is re-evaluated.
+        If an interrupt is pending, requires the user to /resume instead.
         """
         await self._assert_thread_exists(thread_id)
+
+        config = {"configurable": {"thread_id": thread_id}}
+        state = await self._graph.aget_state(config)
+
+        interrupts = _extract_interrupts(state)
+        if interrupts:
+            # Graph is paused at an interrupt. Force user to resume.
+            return InterruptResponseDto(
+                id=thread_id,
+                interrupts=interrupts,
+                messages=_format_messages(state.values) if state else [],
+            )
+
         return await self._invoke_graph(thread_id, request)
 
     async def resume(

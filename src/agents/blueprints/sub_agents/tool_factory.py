@@ -12,7 +12,7 @@ from pathlib import Path
 
 from langchain_core.tools import tool
 
-STORE_ROOT = Path(__file__).resolve().parents[4] / "store" / "files" / "blueprints"
+STORE_ROOT = Path(__file__).resolve().parents[3] / "store" / "files" / "blueprints"
 
 
 def create_file_tool(name: str, description: str, file_path: Path):

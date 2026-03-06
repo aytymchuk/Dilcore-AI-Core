@@ -1,6 +1,6 @@
 """Update design context node — summarizes conversation into structured design decisions."""
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.design.prompts import DESIGN_CONTEXT_SUMMARIZER_PROMPT
@@ -26,7 +26,7 @@ class UpdateDesignContextNode:
         response = await self._llm.ainvoke(
             [
                 SystemMessage(content=prompt),
-                AIMessage(content=conversation),
+                HumanMessage(content=conversation),
             ]
         )
 
