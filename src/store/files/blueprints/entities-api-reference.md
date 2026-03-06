@@ -78,10 +78,10 @@ All endpoints require authentication and the `x-tenant` header.
 | `eTag` | long | Version counter for optimistic concurrency. Every mutation increments this value. Clients must send the current eTag on updates. |
 | `schemaName` | string | Immutable, camelCase storage identifier. Client-settable override on create; if omitted, server generates from `displayName`. Never changes after creation. |
 | `displayName` | string | Human-readable name. 2–128 characters. |
-| `description` | string or null | Purpose of this entity type. Max 200 characters. |
+| `description` | string \| null | Purpose of this entity type. Max 200 characters. |
 | `isAbstract` | boolean | When `true`, entity is a base type meant to be extended, not used directly. |
-| `extendsEntityId` | GUID or null | Parent entity definition ID within the same tenant. Child inherits parent's field structure. |
-| `fields` | array | Ordered list of field definitions. See fields-api-reference.md. |
+| `extendsEntityId` | GUID \| null | Parent entity definition ID within the same tenant. Child inherits parent's field structure. |
+| `fields` | array | Ordered list of field definitions. See the "Field Definitions" section below for full field shape. |
 | `tags` | array of strings | Free-form labels for categorization. |
 | `createdAt` | datetime | UTC timestamp of creation. |
 | `updatedAt` | datetime | UTC timestamp of last modification. |
@@ -189,9 +189,9 @@ Cannot be used as field schema names at any nesting depth:
 | Property | Type | Required | Description |
 |---|---|---|---|
 | `displayName` | string | Yes | 2–128 chars, at least one alphanumeric character |
-| `description` | string | No | Max 200 chars. |
+| `description` | string \| null | No | Max 200 chars. |
 | `isAbstract` | boolean | No | Defaults to `false`. |
-| `extendsEntityId` | GUID | No | Parent entity ID. Must exist in the same tenant. |
+| `extendsEntityId` | GUID \| null | No | Parent entity ID. Must exist in the same tenant. |
 | `schemaName` | string | No | Custom override for auto-generated schema name. |
 | `fields` | array | No | Defaults to empty array. |
 | `tags` | array | No | Defaults to empty array. |
@@ -250,6 +250,7 @@ Cannot be used as field schema names at any nesting depth:
 ### Field Update Behavior
 
 Full replacement with schema name preservation:
+
 - Fields with a `schemaName` matching an existing field keep that schema name
 - Fields without a `schemaName` are new additions with auto-generated names
 - Fields absent from the new tree are removed
@@ -350,3 +351,31 @@ Schema name already exists in the tenant.
   "errorCode": "ETAG_MISMATCH"
 }
 ```
+
+---
+
+## Field Definitions (Inline Reference)
+
+Technical reference for field definitions within the `fields` array of entity types.
+
+### Field Property Reference
+
+| Property | Type | Required on Create | Required on Update | Description |
+|---|---|---|---|---|
+| `schemaName` | string | No | Yes (if preserving identity) | Immutable storage identifier. Auto-generated from `displayName` if omitted. Include on updates to preserve field identity; omitting it triggers creation of a replacement field. |
+| `displayName` | string | Yes | Yes | Human-readable name. 2–128 characters. |
+| `type` | string | Yes | Yes | Data type. See Field Types below. |
+| `fields` | array \| null | Only for Object/Array | Only for Object/Array | Nested field definitions. Required (min 1) for complex types. Must be null or absent for primitives. |
+
+### Field Types
+
+| API Type | Category | Nested Fields | Business meaning |
+|---|---|---|---|
+| `String` | Primitive | No | Text: names, labels, descriptions, emails |
+| `Number` | Primitive | No | Numeric: quantities, amounts, prices, percentages |
+| `Boolean` | Primitive | No | Binary: yes/no flags, toggles |
+| `DateTime` | Primitive | No | Temporal: dates, timestamps, deadlines |
+| `File` | Primitive | No | Attachments: images, documents, uploads |
+| `Identifier` | Primitive | No | References: links to other entity instances |
+| `Object` | Complex | Yes (min 1) | Group: bundles related sub-fields |
+| `Array` | Complex | Yes (min 1) | List: repeating structured items |

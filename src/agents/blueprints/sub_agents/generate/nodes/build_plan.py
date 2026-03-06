@@ -54,7 +54,8 @@ class BuildPlanNode:
         if reference:
             system_prompt += f"\n\nAPI Reference Material:\n{reference}"
 
-        conversation = format_conversation(state["messages"])
+        messages = state.get("messages", [])
+        conversation = format_conversation(messages)
         human_content = conversation
         if design_context:
             human_content = f"Design context:\n{design_context}\n\n---\n\n{conversation}"

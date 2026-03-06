@@ -40,6 +40,7 @@ GENERATE_CONFIRMATION_CLASSIFIER_PROMPT = """Analyze the user's latest message a
 - A confirmation to proceed (e.g. "yes", "go ahead", "confirmed", "looks good", "do it")
 - A correction or addition (e.g. "also add X", "change Y to Z", "remove the X part", "wait, I also need...")
 
+If the user's message contains BOTH an approval AND any new requirement/edits (e.g. "looks good, but also add X"), it MUST be treated as "corrections".
 If the user's message is ambiguous, unclear, a question (e.g. "what about X?"), or does not explicitly approve the plan, treat it as "corrections".
 
 Respond with ONLY one word: "confirmed" or "corrections"."""

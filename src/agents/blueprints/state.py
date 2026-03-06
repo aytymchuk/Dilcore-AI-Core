@@ -28,6 +28,6 @@ class BlueprintsState(TypedDict):
 
     messages: NotRequired[Annotated[list[BaseMessage], add_messages]]
     current_phase: NotRequired[PhaseType]
-    design_context: NotRequired[list[str]]
+    design_context: NotRequired[str]
     generation_plan: NotRequired[list[PlanAction]]
     generation_plan_confirmed: NotRequired[bool]

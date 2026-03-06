@@ -149,9 +149,13 @@ class TestGlobalExceptionHandlers:
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
+            from unittest.mock import MagicMock
+
+            from api.controllers.dependencies import get_blueprints_service
             from main import create_app
 
             app = create_app()
+            app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
             yield TestClient(app)
 
     def test_validation_error_returns_problem_details(self, client) -> None:
@@ -228,9 +232,13 @@ class TestProblemDetailsNoInformationLeakage:
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
+            from unittest.mock import MagicMock
+
+            from api.controllers.dependencies import get_blueprints_service
             from main import create_app
 
             app = create_app()
+            app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
             yield TestClient(app)
 
     def test_error_does_not_expose_api_keys(self, client) -> None:

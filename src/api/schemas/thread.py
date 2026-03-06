@@ -65,6 +65,9 @@ class ResumeInputDto(BaseModel):
             if not isinstance(self.args, ActionRequestDto):
                 raise ValueError("For 'edit' response, 'args' must be an ActionRequest object.")
         elif self.type == "response":
+            if self.message:
+                self.args = self.message
+                self.message = None
             if self.args is not None and not isinstance(self.args, str):
                 raise ValueError("For 'response', 'args' must be a string or null.")
         elif self.type in ("accept", "ignore") and self.args is not None:

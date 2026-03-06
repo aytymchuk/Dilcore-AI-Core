@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from langchain_core.tools import tool
+from langchain_core.tools import BaseTool, tool
 
 STORE_ROOT = Path(__file__).resolve().parents[3] / "store" / "files" / "blueprints"
 
 
-def create_file_tool(name: str, description: str, file_path: Path):
+def create_file_tool(name: str, description: str, file_path: Path) -> BaseTool:
     """Return a LangChain ``@tool`` that reads and returns *file_path* contents."""
 
     @tool(name, description=description)
