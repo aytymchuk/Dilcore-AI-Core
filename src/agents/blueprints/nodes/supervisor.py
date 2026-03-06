@@ -1,25 +1,21 @@
 """Supervisor node for the Blueprints agent."""
 
 import logging
-from typing import Literal
 
 from langchain_core.messages import SystemMessage
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
+from agents.blueprints.constants import (
+    ALL_ROUTES,
+    IDENTIFY_INTENT_ROUTE,
+    RouteNames,
+)
 from agents.blueprints.prompts import SUPERVISOR_SYSTEM_PROMPT
 from agents.blueprints.state import BlueprintsState
 from shared.models import LLMDecision
 
 logger = logging.getLogger(__name__)
-
-# Route Constants
-ASK_ROUTE = "ask"
-IDENTIFY_INTENT_ROUTE = "identify_intent"
-GENERATE_ROUTE = "generate"
-
-# Type definition for route decisions
-RouteNames = Literal["ask", "identify_intent", "generate"]
 
 
 class SupervisorDecision(BaseModel):
@@ -32,32 +28,40 @@ class SupervisorDecision(BaseModel):
 
 
 class SupervisorNode:
-    """Supervisor node that uses structured output to decide the next route."""
+    """Phase-aware supervisor that routes to the correct sub-agent."""
 
     def __init__(self, llm):
-        """Initialize the node with the LLM instance."""
         self._llm = llm
         self._structured_llm = llm.with_structured_output(LLMDecision[SupervisorDecision])
 
     async def __call__(self, state: BlueprintsState) -> Command[RouteNames]:
-        """Evaluate user messages and return the next route."""
-        messages = [SystemMessage(content=SUPERVISOR_SYSTEM_PROMPT)] + state["messages"]
+        current_phase = state.get("current_phase", "")
+        design_context = state.get("design_context", "")
+        generation_plan = state.get("generation_plan", [])
+        plan_confirmed = state.get("generation_plan_confirmed", False)
+
+        prompt = SUPERVISOR_SYSTEM_PROMPT.format(
+            current_phase=current_phase,
+            has_design_context=bool(design_context),
+            has_pending_plan=bool(generation_plan and not plan_confirmed),
+        )
+
+        messages = [SystemMessage(content=prompt)] + state["messages"]
 
         try:
             output: LLMDecision[SupervisorDecision] = await self._structured_llm.ainvoke(messages)
-            decision = output.decision
-            route = getattr(decision, "next_route", IDENTIFY_INTENT_ROUTE)
+            route = output.decision.next_route
             reasoning = output.reasoning
         except Exception:
             logger.exception("Failed to parse supervisor decision. Falling back to %s.", IDENTIFY_INTENT_ROUTE)
             route = IDENTIFY_INTENT_ROUTE
             reasoning = "Failed to parse model output or recognize intent."
 
-        if route not in [ASK_ROUTE, IDENTIFY_INTENT_ROUTE, GENERATE_ROUTE]:
+        if route not in ALL_ROUTES:
             logger.warning("Unexpected route from LLM: %s. Falling back to %s.", route, IDENTIFY_INTENT_ROUTE)
             route = IDENTIFY_INTENT_ROUTE
 
         logger.debug("Supervisor reasoning: %s", reasoning)
         logger.info("Supervisor routed to: %s", route)
 
-        return Command(goto=route)
+        return Command(goto=route, update={"current_phase": route})

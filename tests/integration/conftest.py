@@ -23,7 +23,7 @@ def mongodb_checkpointer(mongodb_container):
     return MongoDBSaver(client, db_name="test_langgraph_checkpoints")
 
 
-@pytest.fixture(autouse=True)
+@pytest.fixture
 def patch_checkpointer(mongodb_checkpointer):
     """Route get_checkpointer() to the testcontainer-backed saver for every integration test."""
     with patch(
