@@ -47,7 +47,7 @@ class BuildPlanNode:
         return "\n\n---\n\n".join(sections)
 
     async def __call__(self, state: BlueprintsState) -> dict:
-        design_context = state.get("design_context", [])
+        design_context = state.get("design_context", "")
 
         reference = await self._load_reference_context()
         system_prompt = GENERATE_PLANNER_PROMPT
@@ -57,8 +57,7 @@ class BuildPlanNode:
         conversation = format_conversation(state["messages"])
         human_content = conversation
         if design_context:
-            context_str = "\n".join(f"- {ctx}" for ctx in design_context)
-            human_content = f"Design context:\n{context_str}\n\n---\n\n{conversation}"
+            human_content = f"Design context:\n{design_context}\n\n---\n\n{conversation}"
 
         try:
             plan: GenerationPlan = await self._structured_llm.ainvoke(

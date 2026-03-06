@@ -36,7 +36,7 @@ class SupervisorNode:
 
     async def __call__(self, state: BlueprintsState) -> Command[RouteNames]:
         current_phase = state.get("current_phase", "")
-        design_context = state.get("design_context", [])
+        design_context = state.get("design_context", "")
         generation_plan = state.get("generation_plan", [])
         plan_confirmed = state.get("generation_plan_confirmed", False)
 

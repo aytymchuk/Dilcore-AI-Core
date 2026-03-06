@@ -56,6 +56,7 @@ class TestBlueprintsGraphInitialization:
             assert graph._llm is not None
 
 
+@pytest.mark.integration
 class TestBlueprintsGraphFlow:
     """Tests for graph routing and execution flow using mocked LLM."""
 

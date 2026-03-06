@@ -149,8 +149,9 @@ class TestGlobalExceptionHandlers:
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from main import app
+            from main import create_app
 
+            app = create_app()
             yield TestClient(app)
 
     def test_validation_error_returns_problem_details(self, client) -> None:
@@ -227,8 +228,9 @@ class TestProblemDetailsNoInformationLeakage:
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from main import app
+            from main import create_app
 
+            app = create_app()
             yield TestClient(app)
 
     def test_error_does_not_expose_api_keys(self, client) -> None:
