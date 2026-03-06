@@ -70,7 +70,7 @@ jobs:
           --junitxml=TestResults/junit-integration.xml
 
     - name: 📊 Generate Coverage Report
-      uses: danielpalme/ReportGenerator-GitHub-Action@v5.5.1
+      uses: danielpalme/ReportGenerator-GitHub-Action@5.5.3
       if: always() && steps.pytest.outcome != 'skipped'
       with:
         reports: 'TestResults/coverage.xml'
