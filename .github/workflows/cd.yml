@@ -1,0 +1,41 @@
+name: 🚀 CD AI Agent
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+    inputs:
+      version_bump_type:
+        description: 'Type of version bump'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  build:
+    name: 🐳 Build & Push
+    uses: ./.github/workflows/build-container-app.yml
+    with:
+      tag_name: "ai-agent"
+      version_bump_type: ${{ github.event.inputs.version_bump_type || 'patch' }}
+    secrets: inherit
+
+  deploy-dev:
+    name: 🚀 Deploy (Dev)
+    needs: build
+    uses: ./.github/workflows/deploy-container-app.yml
+    with:
+      componentName: "AI"
+      serviceName: "core"
+      version: ${{ needs.build.outputs.version }}
+      environment: "Development"
+    secrets: inherit

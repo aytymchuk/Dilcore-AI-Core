@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, status
@@ -18,4 +19,5 @@ async def health_check(settings: SettingsDep) -> dict[str, Any]:
         "status": "healthy",
         "app_name": settings.app_name,
         "model": settings.openrouter.model,
+        "version": os.getenv("APP_VERSION", "0.0.0"),
     }
