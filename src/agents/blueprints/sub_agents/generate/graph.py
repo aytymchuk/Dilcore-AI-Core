@@ -9,6 +9,8 @@ the structured ``HumanInterrupt`` payload.  The caller resumes with
 ``Command(resume=<HumanResponse>)``.
 """
 
+from typing import Any
+
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -32,7 +34,6 @@ def _should_loop(state: BlueprintsState) -> str:
 
 def build_generate_graph(settings: Settings) -> CompiledStateGraph:
     """Build and compile the Generate sub-graph with HITL confirmation loop."""
-    from typing import Any
 
     nodes: dict[str, Any] = {
         "build_plan": BuildPlanNode(settings),

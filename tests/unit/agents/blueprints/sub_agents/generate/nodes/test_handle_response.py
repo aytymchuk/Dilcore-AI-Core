@@ -12,8 +12,11 @@ from shared.models import LLMDecision
 
 @pytest.fixture
 def mock_llm():
-    """Create a mock LLM."""
-    return MagicMock()
+    """Create a mock LLM with configured structured output."""
+    llm = MagicMock()
+    structured_llm = AsyncMock()
+    llm.with_structured_output.return_value = structured_llm
+    return llm
 
 
 @pytest.mark.asyncio
@@ -36,9 +39,7 @@ async def test_handle_response_classifies_confirmed(mock_llm):
     decision = ConfirmationClassification(decision="confirmed")
     llm_output = LLMDecision(decision=decision, reasoning="User said yes.")
 
-    mock_structured_llm = AsyncMock()
-    mock_structured_llm.ainvoke.return_value = llm_output
-    mock_llm.with_structured_output.return_value = mock_structured_llm
+    mock_llm.with_structured_output().ainvoke.return_value = llm_output
 
     with patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm):
         node = HandleResponseNode(mock_settings)
@@ -59,9 +60,7 @@ async def test_handle_response_classifies_corrections(mock_llm):
     decision = ConfirmationClassification(decision="corrections")
     llm_output = LLMDecision(decision=decision, reasoning="User wants changes.")
 
-    mock_structured_llm = AsyncMock()
-    mock_structured_llm.ainvoke.return_value = llm_output
-    mock_llm.with_structured_output.return_value = mock_structured_llm
+    mock_llm.with_structured_output().ainvoke.return_value = llm_output
 
     with patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm):
         node = HandleResponseNode(mock_settings)
@@ -79,9 +78,7 @@ async def test_handle_response_classifies_corrections(mock_llm):
 async def test_handle_response_fallback_on_error(mock_llm):
     """HandleResponseNode should fallback to corrections on LLM error."""
     mock_settings = MagicMock()
-    mock_structured_llm = AsyncMock()
-    mock_structured_llm.ainvoke.side_effect = Exception("LLM Error")
-    mock_llm.with_structured_output.return_value = mock_structured_llm
+    mock_llm.with_structured_output().ainvoke.side_effect = Exception("LLM Error")
 
     with patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm):
         node = HandleResponseNode(mock_settings)

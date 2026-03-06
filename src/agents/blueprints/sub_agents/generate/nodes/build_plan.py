@@ -4,6 +4,7 @@ Pre-loads API reference material (agent rules, entity/field API references) so
 the planner LLM has full schema knowledge when producing the plan.
 """
 
+import asyncio
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -31,20 +32,24 @@ class BuildPlanNode:
     def __init__(self, settings: Settings):
         self._structured_llm = create_llm(settings).with_structured_output(GenerationPlan)
 
-    def _load_reference_context(self) -> str:
+    async def _load_reference_context(self) -> str:
         """Eagerly invoke all reference tools and concatenate their output."""
-        sections: list[str] = []
-        for t in self._REFERENCE_TOOLS:
+
+        async def _safe_invoke(t):
             try:
-                sections.append(t.invoke({}))
+                return await t.ainvoke({})
             except Exception:
                 logger.warning("Failed to load reference tool %s", t.name, exc_info=True)
+                return None
+
+        results = await asyncio.gather(*(_safe_invoke(t) for t in self._REFERENCE_TOOLS))
+        sections = [r for r in results if r]
         return "\n\n---\n\n".join(sections)
 
     async def __call__(self, state: BlueprintsState) -> dict:
         design_context = state.get("design_context", [])
 
-        reference = self._load_reference_context()
+        reference = await self._load_reference_context()
         system_prompt = GENERATE_PLANNER_PROMPT
         if reference:
             system_prompt += f"\n\nAPI Reference Material:\n{reference}"

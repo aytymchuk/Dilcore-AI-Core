@@ -32,7 +32,7 @@ def mock_settings():
 @pytest.fixture
 def mock_checkpointer():
     """Mock get_checkpointer to return a MemorySaver for non-Docker tests."""
-    with patch("infrastructure.checkpoint.document_checkpointer.get_checkpointer") as mock_get:
+    with patch("agents.blueprints.graph.get_checkpointer") as mock_get:
         mock_get.return_value = MemorySaver()
         yield mock_get
 
@@ -41,7 +41,7 @@ class TestBlueprintsGraphInitialization:
     """Basic initialization tests."""
 
     @pytest.mark.integration
-    def test_graph_initializes_with_settings(self, mock_settings) -> None:
+    def test_graph_initializes_with_settings(self, mock_settings, mock_checkpointer) -> None:
         """BlueprintsGraph should initialize with correct settings."""
         with (
             patch("infrastructure.llm.client.ChatOpenAI"),
@@ -69,8 +69,11 @@ class TestBlueprintsGraphFlow:
         mock_llm = MagicMock()
 
         with (
-            patch("infrastructure.llm.client.create_llm", return_value=mock_llm),
-            patch("infrastructure.llm.client.create_creative_llm", return_value=mock_llm),
+            patch("agents.blueprints.graph.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.react_agent_node.create_creative_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.generate.nodes.build_plan.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.design.nodes.update_design_context.create_llm", return_value=mock_llm),
             patch("infrastructure.llm.client.OpenAIEmbeddings"),
             patch("store.vector.faiss_store.FAISS"),
             patch("agents.blueprints.nodes.supervisor.SupervisorNode.__call__") as mock_sup_call,
@@ -99,8 +102,11 @@ class TestBlueprintsGraphFlow:
         mock_llm = MagicMock()
 
         with (
-            patch("infrastructure.llm.client.create_llm", return_value=mock_llm),
-            patch("infrastructure.llm.client.create_creative_llm", return_value=mock_llm),
+            patch("agents.blueprints.graph.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.react_agent_node.create_creative_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.generate.nodes.build_plan.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.sub_agents.design.nodes.update_design_context.create_llm", return_value=mock_llm),
             patch("infrastructure.llm.client.OpenAIEmbeddings"),
             patch("store.vector.faiss_store.FAISS"),
             patch("agents.blueprints.nodes.supervisor.SupervisorNode.__call__") as mock_sup_call,

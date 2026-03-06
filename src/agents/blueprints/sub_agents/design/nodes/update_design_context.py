@@ -17,8 +17,9 @@ class UpdateDesignContextNode:
 
     async def __call__(self, state: BlueprintsState) -> dict:
         existing_context = state.get("design_context", "")
-        prompt = DESIGN_CONTEXT_SUMMARIZER_PROMPT.format(
-            existing_context=existing_context or "(none)",
+        prompt = DESIGN_CONTEXT_SUMMARIZER_PROMPT.replace(
+            "{existing_context}",
+            existing_context or "(none)",
         )
 
         conversation = format_conversation(state["messages"])

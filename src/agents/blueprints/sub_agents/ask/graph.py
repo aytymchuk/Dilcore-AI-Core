@@ -1,5 +1,7 @@
 """Ask sub-graph for providing guidance and information about blueprints."""
 
+from typing import Any
+
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -10,7 +12,6 @@ from shared.config import Settings
 
 def build_ask_graph(settings: Settings) -> CompiledStateGraph:
     """Build and compile the Ask sub-graph."""
-    from typing import Any
 
     nodes: dict[str, Any] = {
         "ask_agent": AskAgentNode.from_settings(settings),

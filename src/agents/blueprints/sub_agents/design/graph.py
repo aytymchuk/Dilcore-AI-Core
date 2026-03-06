@@ -1,5 +1,7 @@
 """Design sub-graph for collaborative blueprint planning."""
 
+from typing import Any
+
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
@@ -13,7 +15,6 @@ from shared.config import Settings
 
 def build_design_graph(settings: Settings) -> CompiledStateGraph:
     """Build and compile the Design sub-graph."""
-    from typing import Any
 
     nodes: dict[str, Any] = {
         "design_agent": DesignAgentNode.from_settings(settings),
