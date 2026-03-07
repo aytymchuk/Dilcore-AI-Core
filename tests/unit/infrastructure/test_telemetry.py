@@ -6,13 +6,13 @@ from infrastructure.tenant_provider import HeaderTenantProvider, _tenant_id_var
 from infrastructure.tracing.processors.log import TenantLogFilter, UserLogFilter
 from infrastructure.tracing.telemetry import TenantSpanProcessor
 from infrastructure.user_provider import ContextUserProvider, set_user_id
-from shared.constants import UNKNOWN_CONTEXT_VALUE
+from shared.constants import UNKNOWN_TENANT_ID, UNKNOWN_USER_ID
 
 
 def test_context_variables_defaults():
     """Verify default values of context variables."""
-    assert HeaderTenantProvider().get_tenant_id() == UNKNOWN_CONTEXT_VALUE
-    assert ContextUserProvider().get_user_id() == UNKNOWN_CONTEXT_VALUE
+    assert HeaderTenantProvider().get_tenant_id() == UNKNOWN_TENANT_ID
+    assert ContextUserProvider().get_user_id() == UNKNOWN_USER_ID
 
 
 def test_context_variables_set_get():
@@ -25,7 +25,7 @@ def test_context_variables_set_get():
         assert ContextUserProvider().get_user_id() == "test-user"
     finally:
         _tenant_id_var.reset(token)
-        set_user_id(UNKNOWN_CONTEXT_VALUE)
+        set_user_id(UNKNOWN_USER_ID)
 
 
 def test_tenant_span_processor_injects_attributes():
@@ -45,7 +45,7 @@ def test_tenant_span_processor_injects_attributes():
         span.set_attribute.assert_any_call("user.id", "span-user")
     finally:
         _tenant_id_var.reset(token)
-        set_user_id(UNKNOWN_CONTEXT_VALUE)
+        set_user_id(UNKNOWN_USER_ID)
 
 
 def test_tenant_log_filter_injects_attributes():
@@ -83,4 +83,4 @@ def test_user_log_filter_injects_attributes():
         assert getattr(log_record, "user.id", None) == "log-user"
         assert getattr(log_record, "tenant.id", None) is None
     finally:
-        set_user_id(UNKNOWN_CONTEXT_VALUE)
+        set_user_id(UNKNOWN_USER_ID)

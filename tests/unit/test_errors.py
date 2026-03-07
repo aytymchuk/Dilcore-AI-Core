@@ -1,15 +1,10 @@
 """Tests for Problem Details error handling."""
 
-import os
-from unittest.mock import MagicMock, patch
-
 import pytest
 from fastapi import status
-from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
 from api.schemas.errors import ProblemDetails
-from application.domain.current_user import CurrentUser
 from shared.exceptions import (
     AIAgentException,
     ConfigurationError,
@@ -140,41 +135,16 @@ class TestCustomExceptions:
 class TestGlobalExceptionHandlers:
     """Test cases for global exception handlers."""
 
-    @pytest.fixture
-    def client(self):
-        """Create test client with mocked settings."""
-        env_vars = {
-            "OPENROUTER__API_KEY": "test-api-key",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            from shared.config.settings import get_settings
+    AUTH0_TEST_ENV = {
+        "AUTH0__DOMAIN": "test.auth0.com",
+        "AUTH0__CLIENT_ID": "test-id",
+        "AUTH0__CLIENT_SECRET": "test-secret",
+        "AUTH0__AUDIENCE": "test-audience",
+    }
 
-            get_settings.cache_clear()
-
-            from api.controllers.dependencies import get_blueprints_service
-            from infrastructure.auth import get_user_context_provider, verify_token
-            from main import create_app
-
-            app = create_app()
-
-            # Mock resolver and user
-            mock_user = CurrentUser(user_id="test-user", email="test@example.com")
-            mock_resolver = MagicMock()
-            mock_resolver.resolve_current_user.return_value = mock_user
-
-            app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
-            app.dependency_overrides[verify_token] = lambda: "mock_token"
-            app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
-
-            yield TestClient(app)
-
-    def test_validation_error_returns_problem_details(self, client) -> None:
+    def test_validation_error_returns_problem_details(self, authenticated_client) -> None:
         """Validation errors should return Problem Details format."""
-        response = client.post("/api/v1/blueprints/start", json={})
+        response = authenticated_client.post("/api/v1/blueprints/start", json={})
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -187,9 +157,9 @@ class TestGlobalExceptionHandlers:
         assert data["status"] == 422
         assert data["type"].endswith("validation-error")
 
-    def test_validation_error_empty_prompt(self, client) -> None:
+    def test_validation_error_empty_prompt(self, authenticated_client) -> None:
         """Empty prompt validation should return Problem Details."""
-        response = client.post("/api/v1/blueprints/start", json={"message": ""})
+        response = authenticated_client.post("/api/v1/blueprints/start", json={"message": ""})
 
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
@@ -199,10 +169,10 @@ class TestGlobalExceptionHandlers:
         assert "pydantic" not in data["detail"].lower()
         assert "traceback" not in data["detail"].lower()
 
-    def test_validation_error_prompt_too_long(self, client) -> None:
+    def test_validation_error_prompt_too_long(self, authenticated_client) -> None:
         """Prompt exceeding max length should return Problem Details."""
         long_prompt = "a" * 5000
-        response = client.post("/api/v1/blueprints/start", json={"message": long_prompt})
+        response = authenticated_client.post("/api/v1/blueprints/start", json={"message": long_prompt})
 
         # LangGraph validator might catch this
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
@@ -210,9 +180,9 @@ class TestGlobalExceptionHandlers:
         data = response.json()
         assert data["status"] == 422
 
-    def test_404_returns_problem_details(self, client) -> None:
+    def test_404_returns_problem_details(self, authenticated_client) -> None:
         """404 errors should return Problem Details format."""
-        response = client.get("/api/v1/nonexistent")
+        response = authenticated_client.get("/api/v1/nonexistent")
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
 
@@ -221,9 +191,9 @@ class TestGlobalExceptionHandlers:
         assert data["type"].endswith("not-found")
         assert data["instance"] == "/api/v1/nonexistent"
 
-    def test_health_endpoint_success_not_problem_details(self, client) -> None:
+    def test_health_endpoint_success_not_problem_details(self, authenticated_client) -> None:
         """Successful responses should not use Problem Details format."""
-        response = client.get("/api/v1/health")
+        response = authenticated_client.get("/api/v1/health")
 
         assert response.status_code == status.HTTP_200_OK
 
@@ -237,52 +207,28 @@ class TestGlobalExceptionHandlers:
 class TestProblemDetailsNoInformationLeakage:
     """Test that Problem Details doesn't leak sensitive information."""
 
-    @pytest.fixture
-    def client(self):
-        """Create test client."""
-        env_vars = {
-            "OPENROUTER__API_KEY": "PLACEHOLDER-NOT-A-REAL-KEY",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
-        }
-        with patch.dict(os.environ, env_vars, clear=False):
-            from shared.config.settings import get_settings
+    AUTH0_TEST_ENV = {
+        "AUTH0__DOMAIN": "test.auth0.com",
+        "AUTH0__CLIENT_ID": "test-id",
+        "AUTH0__CLIENT_SECRET": "test-secret",
+        "AUTH0__AUDIENCE": "test-audience",
+    }
 
-            get_settings.cache_clear()
-
-            from api.controllers.dependencies import get_blueprints_service
-            from infrastructure.auth import get_user_context_provider, verify_token
-            from main import create_app
-
-            app = create_app()
-
-            # Mock resolver and user
-            mock_user = CurrentUser(user_id="test-user", email="test@example.com")
-            mock_resolver = MagicMock()
-            mock_resolver.resolve_current_user.return_value = mock_user
-
-            app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
-            app.dependency_overrides[verify_token] = lambda: "mock_token"
-            app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
-
-            yield TestClient(app)
-
-    def test_error_does_not_expose_api_keys(self, client) -> None:
+    def test_error_does_not_expose_api_keys(self, authenticated_client) -> None:
         """Error responses should not expose API keys."""
-        response = client.post("/api/v1/blueprints/start", json={})
+        # Note: authenticated_client uses 'test-api-key-12345' from conftest
+        response = authenticated_client.post("/api/v1/blueprints/start", json={})
 
         assert response.status_code == 422
         data = response.json()
 
         # Check for placeholder key in response
         response_str = str(data).lower()
-        assert "placeholder-not-a-real-key" not in response_str
+        assert "test-api-key-12345" not in response_str
 
-    def test_error_does_not_expose_file_paths(self, client) -> None:
+    def test_error_does_not_expose_file_paths(self, authenticated_client) -> None:
         """Error responses should not expose internal file paths."""
-        response = client.post("/api/v1/blueprints/start", json={"message": ""})
+        response = authenticated_client.post("/api/v1/blueprints/start", json={"message": ""})
 
         data = response.json()
         response_str = str(data)
@@ -291,9 +237,9 @@ class TestProblemDetailsNoInformationLeakage:
         assert "src/ai_agent" not in response_str
         assert ".py" not in response_str
 
-    def test_error_does_not_expose_internal_class_names(self, client) -> None:
+    def test_error_does_not_expose_internal_class_names(self, authenticated_client) -> None:
         """Error responses should not expose internal class names."""
-        response = client.post("/api/v1/blueprints/start", json={})
+        response = authenticated_client.post("/api/v1/blueprints/start", json={})
 
         data = response.json()
         response_str = str(data)

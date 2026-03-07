@@ -4,9 +4,9 @@ from typing import Annotated
 from fastapi import Header
 
 from application.abstractions.abc_tenant_provider import AbcTenantProvider
-from shared.constants import TENANT_CONTEXT_KEY, UNKNOWN_CONTEXT_VALUE
+from shared.constants import TENANT_CONTEXT_KEY, UNKNOWN_TENANT_ID
 
-_tenant_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(TENANT_CONTEXT_KEY, default=UNKNOWN_CONTEXT_VALUE)
+_tenant_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(TENANT_CONTEXT_KEY, default=UNKNOWN_TENANT_ID)
 
 
 class HeaderTenantProvider(AbcTenantProvider):

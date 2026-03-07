@@ -25,7 +25,7 @@ def configure_tracing() -> None:
 
     LangSmith tracing is activated automatically when the
     ``LANGCHAIN_TRACING_V2`` environment variable is set to ``"true"``.
-    OpenTelemetry configuration is a placeholder for future integration.
+    OpenTelemetry is activated when `AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING` is set.
     """
     if os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true":
         logger.info(

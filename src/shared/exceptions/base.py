@@ -43,6 +43,19 @@ class ValidationError(AIAgentException):
         )
 
 
+class AuthenticationError(AIAgentException):
+    """Raised when authentication fails."""
+
+    def __init__(self, message: str = "Authentication failed") -> None:
+        """Initialize authentication error."""
+        super().__init__(
+            message=message,
+            problem_type="unauthorized",
+            title="Authentication Error",
+            status_code=401,
+        )
+
+
 class LLMProviderError(AIAgentException):
     """Raised when LLM provider communication fails."""
 

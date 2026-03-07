@@ -9,16 +9,20 @@ from shared.config.settings import Settings, get_settings
 class TestSettings:
     """Test cases for Settings class."""
 
+    AUTH0_TEST_ENV = {
+        "AUTH0__DOMAIN": "test.auth0.com",
+        "AUTH0__CLIENT_ID": "test-id",
+        "AUTH0__CLIENT_SECRET": "test-secret",
+        "AUTH0__AUDIENCE": "test-audience",
+    }
+
     def test_settings_loads_from_env(self) -> None:
         """Settings should load values from environment variables."""
         env_vars = {
             "OPENROUTER__API_KEY": "test-key-123",
             "OPENROUTER__MODEL": "anthropic/claude-3",
             "APP_NAME": "Custom App Name",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
+            **self.AUTH0_TEST_ENV,
         }
 
         with patch.dict(os.environ, env_vars, clear=False):
@@ -33,10 +37,7 @@ class TestSettings:
         """Settings should use default values when env vars not set."""
         env_vars = {
             "OPENROUTER__API_KEY": "test-key",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
+            **self.AUTH0_TEST_ENV,
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -52,10 +53,7 @@ class TestSettings:
         """API key should be hidden when converted to string."""
         env_vars = {
             "OPENROUTER__API_KEY": "super-secret-key",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
+            **self.AUTH0_TEST_ENV,
         }
 
         with patch.dict(os.environ, env_vars, clear=False):
@@ -70,10 +68,7 @@ class TestSettings:
         """get_settings should return cached instance."""
         env_vars = {
             "OPENROUTER__API_KEY": "test-key",
-            "AUTH0__DOMAIN": "test.auth0.com",
-            "AUTH0__CLIENT_ID": "test-id",
-            "AUTH0__CLIENT_SECRET": "test-secret",
-            "AUTH0__AUDIENCE": "test-audience",
+            **self.AUTH0_TEST_ENV,
         }
 
         with patch.dict(os.environ, env_vars, clear=False):

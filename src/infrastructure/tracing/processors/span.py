@@ -32,9 +32,9 @@ class DependencyNameFixer(SpanProcessor):
     """
 
     def on_start(self, span: trace.Span, parent_context=None):
-        pass
+        if not span.is_recording():
+            return
 
-    def on_end(self, span: trace.Span) -> None:
         name = getattr(span, "name", "")
         # Azure often drops spans without descriptive names into "N/A"
         # urllib3 sometimes just names its spans "GET" or "POST", not the full URL.
@@ -61,5 +61,7 @@ class DependencyNameFixer(SpanProcessor):
             else:
                 new_name = f"{method} Dependency"
 
-            if hasattr(span, "_name"):
-                span._name = new_name
+            span.update_name(new_name)
+
+    def on_end(self, span: trace.Span) -> None:
+        pass

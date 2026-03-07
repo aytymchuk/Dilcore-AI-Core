@@ -17,10 +17,12 @@ class OpenRouterSettings(BaseModel):
 class Auth0Settings(BaseModel):
     """Auth0 tenant and API configuration."""
 
-    domain: str = Field(description="Auth0 tenant domain")
-    client_id: str = Field(description="Auth0 client ID for OpenAPI / Swagger UI")
-    client_secret: SecretStr = Field(description="Auth0 client secret for OpenAPI / Swagger UI")
-    audience: str = Field(description="Auth0 API audience identifier")
+    domain: str = Field(default="example.auth0.com", description="Auth0 tenant domain")
+    client_id: str = Field(default="placeholder_client_id", description="Auth0 client ID for OpenAPI / Swagger UI")
+    client_secret: SecretStr = Field(
+        default=SecretStr("placeholder_secret"), description="Auth0 client secret for OpenAPI / Swagger UI"
+    )
+    audience: str = Field(default="https://api.example.com", description="Auth0 API audience identifier")
 
 
 class MongoDBSettings(BaseModel):
@@ -91,7 +93,7 @@ class Settings(BaseSettings):
     openrouter: OpenRouterSettings
 
     # Auth0 - uses AUTH0__DOMAIN, AUTH0__CLIENT_ID, etc.
-    auth0: Auth0Settings
+    auth0: Auth0Settings | None = Field(default_factory=Auth0Settings)
 
     # MongoDB - uses MONGODB__CONNECTION_STRING, MONGODB__DB_NAME
     mongodb: MongoDBSettings = Field(default_factory=MongoDBSettings)

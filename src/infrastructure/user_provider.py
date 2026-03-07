@@ -1,10 +1,9 @@
 import contextvars
 
-from application.abstractions.abc_user_context_provider import AbcUserContextProvider
-from application.domain.current_user import CurrentUser
-from shared.constants import UNKNOWN_CONTEXT_VALUE, USER_CONTEXT_KEY
+from application.abstractions.abc_user_context_provider import AbcUserIdProvider
+from shared.constants import UNKNOWN_USER_ID, USER_CONTEXT_KEY
 
-_user_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(USER_CONTEXT_KEY, default=UNKNOWN_CONTEXT_VALUE)
+_user_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(USER_CONTEXT_KEY, default=UNKNOWN_USER_ID)
 
 
 def set_user_id(user_id: str) -> None:
@@ -12,17 +11,13 @@ def set_user_id(user_id: str) -> None:
     _user_id_var.set(user_id)
 
 
-class ContextUserProvider(AbcUserContextProvider):
+class ContextUserProvider(AbcUserIdProvider):
     """
-    Implementation of AbcUserContextProvider that retrieves user context
+    Implementation of AbcUserIdProvider that retrieves user context
     from async context variables, primarily for background telemetry where
     active token validation is not available.
     """
 
-    def resolve_current_user(self) -> CurrentUser:
-        """Not supported for pure context providers."""
-        raise NotImplementedError("Context provider cannot resolve full user details.")
-
     def get_user_id(self) -> str:
-        """Return user ID from context variable."""
+        """Retrieve user ID from ambient context. Returns UNKNOWN_USER_ID if not present."""
         return _user_id_var.get()
