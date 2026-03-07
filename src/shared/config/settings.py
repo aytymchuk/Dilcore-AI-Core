@@ -82,6 +82,7 @@ class Settings(BaseSettings):
 
     # Application
     app_name: str = "AI Template Agent"
+    app_version: str = "0.0.1-dev"
     app_debug: bool = False
     log_level: str = "INFO"
     cors_origins: list[str] = Field(default=["*"], description="Allowed CORS origins")

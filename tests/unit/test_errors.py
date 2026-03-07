@@ -1,7 +1,7 @@
 """Tests for Problem Details error handling."""
 
 import os
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import status
@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError as PydanticValidationError
 
 from api.schemas.errors import ProblemDetails
+from application.domain.current_user import CurrentUser
 from shared.exceptions import (
     AIAgentException,
     ConfigurationError,
@@ -144,20 +145,31 @@ class TestGlobalExceptionHandlers:
         """Create test client with mocked settings."""
         env_vars = {
             "OPENROUTER__API_KEY": "test-api-key",
+            "AUTH0__DOMAIN": "test.auth0.com",
+            "AUTH0__CLIENT_ID": "test-id",
+            "AUTH0__CLIENT_SECRET": "test-secret",
+            "AUTH0__AUDIENCE": "test-audience",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from unittest.mock import MagicMock
 
-            from api.controllers.auth_dependencies import verify_token
             from api.controllers.dependencies import get_blueprints_service
+            from infrastructure.auth import get_user_context_provider, verify_token
             from main import create_app
 
             app = create_app()
+
+            # Mock resolver and user
+            mock_user = CurrentUser(user_id="test-user", email="test@example.com")
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_current_user.return_value = mock_user
+
             app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
             app.dependency_overrides[verify_token] = lambda: "mock_token"
+            app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
+
             yield TestClient(app)
 
     def test_validation_error_returns_problem_details(self, client) -> None:
@@ -192,6 +204,7 @@ class TestGlobalExceptionHandlers:
         long_prompt = "a" * 5000
         response = client.post("/api/v1/blueprints/start", json={"message": long_prompt})
 
+        # LangGraph validator might catch this
         assert response.status_code == status.HTTP_422_UNPROCESSABLE_CONTENT
 
         data = response.json()
@@ -229,20 +242,31 @@ class TestProblemDetailsNoInformationLeakage:
         """Create test client."""
         env_vars = {
             "OPENROUTER__API_KEY": "PLACEHOLDER-NOT-A-REAL-KEY",
+            "AUTH0__DOMAIN": "test.auth0.com",
+            "AUTH0__CLIENT_ID": "test-id",
+            "AUTH0__CLIENT_SECRET": "test-secret",
+            "AUTH0__AUDIENCE": "test-audience",
         }
         with patch.dict(os.environ, env_vars, clear=False):
             from shared.config.settings import get_settings
 
             get_settings.cache_clear()
-            from unittest.mock import MagicMock
 
-            from api.controllers.auth_dependencies import verify_token
             from api.controllers.dependencies import get_blueprints_service
+            from infrastructure.auth import get_user_context_provider, verify_token
             from main import create_app
 
             app = create_app()
+
+            # Mock resolver and user
+            mock_user = CurrentUser(user_id="test-user", email="test@example.com")
+            mock_resolver = MagicMock()
+            mock_resolver.resolve_current_user.return_value = mock_user
+
             app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
             app.dependency_overrides[verify_token] = lambda: "mock_token"
+            app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
+
             yield TestClient(app)
 
     def test_error_does_not_expose_api_keys(self, client) -> None:
@@ -252,6 +276,7 @@ class TestProblemDetailsNoInformationLeakage:
         assert response.status_code == 422
         data = response.json()
 
+        # Check for placeholder key in response
         response_str = str(data).lower()
         assert "placeholder-not-a-real-key" not in response_str
 
@@ -273,5 +298,6 @@ class TestProblemDetailsNoInformationLeakage:
         data = response.json()
         response_str = str(data)
 
+        # Standard FastAPI/Starlette errors might use internal names but our handlers should clean them
         assert "PydanticOutputParser" not in response_str
         assert "ChatOpenAI" not in response_str

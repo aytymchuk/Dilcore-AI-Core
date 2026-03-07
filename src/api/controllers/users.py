@@ -2,8 +2,8 @@
 
 from fastapi import APIRouter
 
-from api.controllers.auth_dependencies import UserContextDep
 from application.domain.current_user import CurrentUser
+from infrastructure.auth import UserContextDep
 
 users_router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 

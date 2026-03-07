@@ -12,6 +12,11 @@ from __future__ import annotations
 import logging
 import os
 
+# Disable the auto-instrumentation for FastAPI and ASGI initialized by Azure Monitor because
+# the SDK drops or ignores third-party nested exclusion settings for `exclude_spans`.
+# We will manually instrument it in our main.py loop.
+os.environ.setdefault("OTEL_PYTHON_DISABLED_INSTRUMENTATIONS", "fastapi,asgi")
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +35,8 @@ def configure_tracing() -> None:
     else:
         logger.debug("LangSmith tracing is disabled")
 
-    # Configure OpenTelemetry SDK and Azure Monitor setup
-    from infrastructure.telemetry import setup_telemetry
+    # Configure OpenTelemetry SDK and Azure Monitor setup using DI container
+    from container import Container
 
-    setup_telemetry()
+    container = Container()
+    container.infrastructure.telemetry()
