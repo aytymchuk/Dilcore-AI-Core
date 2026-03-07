@@ -58,11 +58,18 @@ class Auth0UserContextResolver(IUserContextResolver):
                 email=payload.get("email") or payload.get("https://schema.org/email"),
                 full_name=payload.get("name") or payload.get("https://schema.org/name"),
             )
-        except Exception as e:
-            logger.warning("JWT Validation error: %s", e)
+        except jwt.ExpiredSignatureError as e:
+            logger.warning("JWT validation error: token has expired")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid or expired token.",
+                detail="Token has expired.",
+                headers={"WWW-Authenticate": "Bearer"},
+            ) from e
+        except jwt.PyJWTError as e:
+            logger.warning("JWT validation error: %s", e)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token.",
                 headers={"WWW-Authenticate": "Bearer"},
             ) from e
 
