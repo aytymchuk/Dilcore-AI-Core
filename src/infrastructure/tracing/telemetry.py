@@ -46,6 +46,20 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserCo
                 # url is typically the host/netloc in urllib3 instrumentation
                 span.update_name(f"{method} {url}")
 
+        def urllib_request_hook(span, request_args):
+            """Hook to enrich urllib client span names with the target host."""
+            if span.is_recording():
+                method = request_args.get("method", "GET")
+                url = request_args.get("url", "")
+                if url:
+                    from urllib.parse import urlparse
+
+                    try:
+                        parsed = urlparse(str(url))
+                        span.update_name(f"{method} {parsed.netloc}")
+                    except Exception:
+                        span.update_name(f"{method} {url}")
+
         configure_azure_monitor(
             connection_string=connection_string,
             span_processors=[tenant_processor, name_fixer],
@@ -57,6 +71,7 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserCo
                 "asgi": {"exclude_spans": ["receive", "send"]},
                 "httpx": {"request_hook": httpx_request_hook},
                 "urllib3": {"request_hook": urllib3_request_hook},
+                "urllib": {"request_hook": urllib_request_hook},
             },
         )
 

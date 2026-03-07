@@ -32,35 +32,58 @@ class DependencyNameFixer(SpanProcessor):
     """
 
     def on_start(self, span: trace.Span, parent_context=None):
+        """
+        Fixes empty or missing span names at the start of the span.
+        Note: Many attributes are set after the span starts, so this is
+        best-effort here. Specific instrumentor hooks are preferred.
+        """
         if not span.is_recording():
             return
 
         name = getattr(span, "name", "")
         # Azure often drops spans without descriptive names into "N/A"
         # urllib3 sometimes just names its spans "GET" or "POST", not the full URL.
-        if not name or name in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS") or name.startswith("HTTP "):
+        if (
+            not name
+            or name in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "HTTP", "HTTP Request")
+            or name.startswith("HTTP ")
+        ):
             attrs: dict = getattr(span, "attributes", {}) or {}
 
-            method = attrs.get("http.request.method") or attrs.get("http.method")
-            if not method:
-                method = getattr(getattr(span, "kind", None), "name", "HTTP")
+            # Use current name as a hint if it's a standard method
+            method_hint = name if name in ("GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS") else None
+
+            # Prioritize standard OTel attributes (modern first, then legacy)
+            method = (
+                attrs.get("http.request.method")
+                or attrs.get("http.method")
+                or method_hint
+                or getattr(getattr(span, "kind", None), "name", "HTTP")
+            )
             if method == "CLIENT":
                 method = "HTTP"
 
-            url = attrs.get("url.full") or attrs.get("http.url", "")
-            host = attrs.get("server.address") or attrs.get("network.peer.address", "")
+            # Host extraction from various semantic conventions
+            host = (
+                attrs.get("server.address")
+                or attrs.get("network.peer.address")
+                or attrs.get("http.host")
+                or attrs.get("peer.service")
+            )
 
-            if host:
-                new_name = f"{method} {host}"
-            elif url:
-                # Basic parsing to extract host/path for the name if possible, or fallback to URL
-                from urllib.parse import urlparse
+            # If no host, try parsing it from full URL
+            if not host:
+                url = attrs.get("url.full") or attrs.get("http.url", "")
+                if url:
+                    from urllib.parse import urlparse
 
-                parsed = urlparse(str(url))
-                new_name = f"{method} {parsed.netloc}"
-            else:
-                new_name = f"{method} Dependency"
+                    try:
+                        parsed = urlparse(str(url))
+                        host = parsed.netloc or parsed.path.split("/")[0]
+                    except Exception:
+                        pass
 
+            new_name = f"{method} {host}" if host else f"{method} Dependency"
             span.update_name(new_name)
 
     def on_end(self, span: trace.Span) -> None:
