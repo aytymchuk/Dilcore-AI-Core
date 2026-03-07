@@ -55,7 +55,7 @@ def setup_openapi(app: FastAPI) -> None:
                         "flows": {
                             "authorizationCode": {
                                 "x-scalar-client-id": settings.auth0.client_id,
-                                "clientSecret": settings.auth0.client_secret.get_secret_value(),
+                                "clientSecret": "", // Consider removing or prompting for the secret, even in non-production environments
                                 "selectedScopes": ["openid", "profile", "email"],
                             }
                         }
