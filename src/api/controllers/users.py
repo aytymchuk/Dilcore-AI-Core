@@ -13,10 +13,13 @@ users_router = APIRouter(prefix="/api/v1/users", tags=["Users"])
 async def get_current_user_endpoint(resolver: CurrentUserResolverDep) -> CurrentUser:
     """Retrieve the current authenticated user's claims.
 
-    Includes userId, email, and fullName.
+    Includes user_id, email, and full_name.
     """
     try:
-        return resolver.resolve_current_user()
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        return await loop.run_in_executor(None, resolver.resolve_current_user)
     except AuthenticationError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

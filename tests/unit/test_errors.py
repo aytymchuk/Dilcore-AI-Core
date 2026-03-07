@@ -135,13 +135,6 @@ class TestCustomExceptions:
 class TestGlobalExceptionHandlers:
     """Test cases for global exception handlers."""
 
-    AUTH0_TEST_ENV = {
-        "AUTH0__DOMAIN": "test.auth0.com",
-        "AUTH0__CLIENT_ID": "test-id",
-        "AUTH0__CLIENT_SECRET": "test-secret",
-        "AUTH0__AUDIENCE": "test-audience",
-    }
-
     def test_validation_error_returns_problem_details(self, authenticated_client) -> None:
         """Validation errors should return Problem Details format."""
         response = authenticated_client.post("/api/v1/blueprints/start", json={})
@@ -206,13 +199,6 @@ class TestGlobalExceptionHandlers:
 
 class TestProblemDetailsNoInformationLeakage:
     """Test that Problem Details doesn't leak sensitive information."""
-
-    AUTH0_TEST_ENV = {
-        "AUTH0__DOMAIN": "test.auth0.com",
-        "AUTH0__CLIENT_ID": "test-id",
-        "AUTH0__CLIENT_SECRET": "test-secret",
-        "AUTH0__AUDIENCE": "test-audience",
-    }
 
     def test_error_does_not_expose_api_keys(self, authenticated_client) -> None:
         """Error responses should not expose API keys."""

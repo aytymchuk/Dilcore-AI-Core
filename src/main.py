@@ -92,7 +92,7 @@ def create_app() -> FastAPI:
 
     FastAPIInstrumentor().instrument_app(
         app,
-        excluded_urls="client/.*/info,healthcheck",
+        excluded_urls="client/.*/info|/api/v1/health$",
         exclude_spans=["receive", "send"],
     )
 

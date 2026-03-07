@@ -41,7 +41,7 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture
-def test_client(mock_env_vars: None) -> Generator[TestClient, None, None]:
+def test_client() -> Generator[TestClient, None, None]:
     """Create a test client for the FastAPI application."""
     from main import app
 
@@ -50,7 +50,7 @@ def test_client(mock_env_vars: None) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
-def authenticated_client(mock_env_vars: None) -> Generator[TestClient, None, None]:
+def authenticated_client() -> Generator[TestClient, None, None]:
     """Create an authenticated test client with common dependency overrides."""
     from unittest.mock import MagicMock
 
@@ -66,8 +66,11 @@ def authenticated_client(mock_env_vars: None) -> Generator[TestClient, None, Non
     # Also mock get_user_id for ambient context if needed
     mock_resolver.get_user_id.return_value = "test-user"
 
+    async def mock_verify_token(*args, **kwargs):
+        return None
+
     app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
-    app.dependency_overrides[verify_token] = lambda: "mock_token"
+    app.dependency_overrides[verify_token] = mock_verify_token
     app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
 
     with TestClient(app) as client:

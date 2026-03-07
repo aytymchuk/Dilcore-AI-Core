@@ -53,7 +53,7 @@ class TestDependencyNameFixer:
 
         fixer.on_start(mock_span)
 
-        # Current implementation falls back to "HTTP Dependency"
+        # falls back to '<METHOD> Dependency' using mock_span.name
         mock_span.update_name.assert_called_with("POST Dependency")
 
     def test_fixer_ignores_descriptive_names(self, fixer, mock_span):

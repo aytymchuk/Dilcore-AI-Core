@@ -17,15 +17,17 @@ def test_context_variables_defaults():
 
 def test_context_variables_set_get():
     """Verify setting and getting context variables."""
-    token = _tenant_id_var.set("test-tenant")
-    set_user_id("test-user")
+    from infrastructure.user_provider import _user_id_var
+
+    tenant_token = _tenant_id_var.set("test-tenant")
+    user_token = _user_id_var.set("test-user")
 
     try:
         assert HeaderTenantProvider().get_tenant_id() == "test-tenant"
         assert ContextUserProvider().get_user_id() == "test-user"
     finally:
-        _tenant_id_var.reset(token)
-        set_user_id(UNKNOWN_USER_ID)
+        _tenant_id_var.reset(tenant_token)
+        _user_id_var.reset(user_token)
 
 
 def test_tenant_span_processor_injects_attributes():

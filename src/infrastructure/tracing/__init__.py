@@ -20,6 +20,9 @@ os.environ.setdefault("OTEL_PYTHON_DISABLED_INSTRUMENTATIONS", "fastapi,asgi")
 logger = logging.getLogger(__name__)
 
 
+_tracing_configured = False
+
+
 def configure_tracing() -> None:
     """Configure LangSmith and OpenTelemetry tracing.
 
@@ -27,6 +30,10 @@ def configure_tracing() -> None:
     ``LANGCHAIN_TRACING_V2`` environment variable is set to ``"true"``.
     OpenTelemetry is activated when `AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING` is set.
     """
+    global _tracing_configured
+    if _tracing_configured:
+        return
+
     if os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true":
         logger.info(
             "LangSmith tracing enabled (project=%s)",
@@ -40,3 +47,5 @@ def configure_tracing() -> None:
 
     container = Container()
     container.infrastructure.telemetry()
+
+    _tracing_configured = True

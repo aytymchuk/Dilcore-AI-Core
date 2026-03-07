@@ -46,11 +46,11 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserCo
                 # url is typically the host/netloc in urllib3 instrumentation
                 span.update_name(f"{method} {url}")
 
-        def urllib_request_hook(span, request_args):
+        def urllib_request_hook(span, request):
             """Hook to enrich urllib client span names with the target host."""
             if span.is_recording():
-                method = request_args.get("method", "GET")
-                url = request_args.get("url", "")
+                method = getattr(request, "method", "GET")
+                url = getattr(request, "full_url", "")
                 if url:
                     from urllib.parse import urlparse
 
@@ -87,15 +87,14 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserCo
         tenant_filter = TenantLogFilter(tenant_provider)
         user_filter = UserLogFilter(user_provider)
 
-        found_handler = False
+        found_any = False
         for h in root_logger.handlers:
             if isinstance(h, LoggingHandler):
                 h.addFilter(tenant_filter)
                 h.addFilter(user_filter)
-                found_handler = True
-                break
+                found_any = True
 
-        if not found_handler:
+        if not found_any:
             logger.warning(
                 "OpenTelemetry LoggingHandler not found on root logger. "
                 "Tenant and User log enrichment will not be applied."

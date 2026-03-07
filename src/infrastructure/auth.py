@@ -96,7 +96,7 @@ class Auth0UserContextProvider(AbcUserContextProvider):
         except jwt.ExpiredSignatureError as e:
             logger.warning("JWT validation error: token has expired")
             raise AuthenticationError("Token has expired.") from e
-        except jwt.PyJWKError as e:
+        except jwt.PyJWTError as e:
             logger.warning("JWT validation error [%s]: %s", type(e).__name__, e)
             raise AuthenticationError("Invalid token.") from e
 

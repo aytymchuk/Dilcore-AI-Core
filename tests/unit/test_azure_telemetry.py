@@ -41,13 +41,16 @@ class TestAzureTelemetryFilters:
         logger.addHandler(handler)
         logger.setLevel(logging.INFO)
 
-        logger.info("Test message")
+        try:
+            logger.info("Test message")
 
-        # Get the exported logs
-        logs = exporter.get_finished_logs()
-        assert len(logs) == 1
+            # Get the exported logs
+            logs = exporter.get_finished_logs()
+            assert len(logs) == 1
 
-        log_record = logs[0].log_record
-        # standard python attributes are mapped to attributes in OTel LogRecord
-        assert log_record.attributes["tenant.id"] == "test-tenant-id"
-        assert log_record.attributes["user.id"] == "test-user-id"
+            log_record = logs[0].log_record
+            # standard python attributes are mapped to attributes in OTel LogRecord
+            assert log_record.attributes["tenant.id"] == "test-tenant-id"
+            assert log_record.attributes["user.id"] == "test-user-id"
+        finally:
+            logger.removeHandler(handler)

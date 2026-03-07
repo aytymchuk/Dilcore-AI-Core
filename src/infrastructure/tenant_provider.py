@@ -20,7 +20,7 @@ class HeaderTenantProvider(AbcTenantProvider):
         return _tenant_id_var.get()
 
 
-async def extract_tenant_header(
+def extract_tenant_header(
     x_tenant: Annotated[str, Header(description="Tenant identifier")],
 ) -> str:
     """
