@@ -6,14 +6,22 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from infrastructure.tracing import configure_tracing
+
+# VERY IMPORTANT: Configure tracing before importing FastAPI
+# This ensures that OpenTelemetry properly instruments the FastAPI application
+configure_tracing()
+
+# ruff: noqa: E402
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.controllers import blueprints_router, health_router
+from api.controllers.auth_dependencies import verify_token
+from api.controllers.users import users_router
 from api.middleware import setup_exception_handlers
 from api.openapi import setup_openapi
 from infrastructure.checkpoint.document_checkpointer import close_checkpointer
-from infrastructure.tracing import configure_tracing
 from shared.config import get_settings
 
 # Configure logging
@@ -28,7 +36,6 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
     settings = get_settings()
-    configure_tracing()
     logger.info("Starting %s...", settings.app_name)
     logger.info("Using model: %s", settings.openrouter.model)
     yield
@@ -61,7 +68,8 @@ def create_app() -> FastAPI:
 
     # API routes
     app.include_router(health_router)
-    app.include_router(blueprints_router)  # /api/v1/blueprints
+    app.include_router(users_router)  # /api/v1/users
+    app.include_router(blueprints_router, dependencies=[Depends(verify_token)])  # /api/v1/blueprints
 
     setup_openapi(app)
 

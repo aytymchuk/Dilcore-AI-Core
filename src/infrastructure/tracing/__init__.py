@@ -30,4 +30,7 @@ def configure_tracing() -> None:
     else:
         logger.debug("LangSmith tracing is disabled")
 
-    # Future: configure OpenTelemetry SDK here
+    # Configure OpenTelemetry SDK and Azure Monitor setup
+    from infrastructure.telemetry import setup_telemetry
+
+    setup_telemetry()

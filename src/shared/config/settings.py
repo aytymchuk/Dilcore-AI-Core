@@ -14,6 +14,15 @@ class OpenRouterSettings(BaseModel):
     model: str = "openai/gpt-oss-20b:free"
 
 
+class Auth0Settings(BaseModel):
+    """Auth0 tenant and API configuration."""
+
+    domain: str = Field(description="Auth0 tenant domain")
+    client_id: str = Field(description="Auth0 client ID for OpenAPI / Swagger UI")
+    client_secret: SecretStr = Field(description="Auth0 client secret for OpenAPI / Swagger UI")
+    audience: str = Field(description="Auth0 API audience identifier")
+
+
 class MongoDBSettings(BaseModel):
     """MongoDB configuration for LangGraph checkpointer persistence."""
 
@@ -80,11 +89,19 @@ class Settings(BaseSettings):
     # OpenRouter - uses OPENROUTER__API_KEY, OPENROUTER__BASE_URL, etc.
     openrouter: OpenRouterSettings
 
+    # Auth0 - uses AUTH0__DOMAIN, AUTH0__CLIENT_ID, etc.
+    auth0: Auth0Settings
+
     # MongoDB - uses MONGODB__CONNECTION_STRING, MONGODB__DB_NAME
     mongodb: MongoDBSettings = Field(default_factory=MongoDBSettings)
 
     # Vector Store - uses VECTOR_STORE__BASE_PATH, VECTOR_STORE__EMBEDDING_MODEL, etc.
     vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
+
+    # Azure Telemetry
+    azure_application_insights_connection_string: str = Field(
+        default="", description="Azure Application Insights connection string for OpenTelemetry"
+    )
 
 
 @lru_cache

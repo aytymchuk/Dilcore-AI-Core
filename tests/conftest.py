@@ -22,6 +22,10 @@ def mock_env_vars() -> Generator[None, None, None]:
         "APP_NAME": "Test AI Agent",
         "APP_DEBUG": "true",
         "LOG_LEVEL": "DEBUG",
+        "AUTH0__DOMAIN": "test.auth0.com",
+        "AUTH0__CLIENT_ID": "test-client",
+        "AUTH0__CLIENT_SECRET": "test-secret",
+        "AUTH0__AUDIENCE": "test-audience",
     }
 
     # Patch Settings to disable .env file loading
