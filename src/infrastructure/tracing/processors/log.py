@@ -1,7 +1,7 @@
 import logging
 
 from application.abstractions.abc_tenant_provider import AbcTenantProvider
-from application.abstractions.abc_user_context_provider import AbcUserContextProvider
+from application.abstractions.abc_user_id_provider import AbcUserIdProvider
 
 
 class TenantLogFilter(logging.Filter):
@@ -27,7 +27,7 @@ class UserLogFilter(logging.Filter):
     into every standard python log record.
     """
 
-    def __init__(self, user_provider: AbcUserContextProvider):
+    def __init__(self, user_provider: AbcUserIdProvider):
         super().__init__()
         self._user_provider = user_provider
 

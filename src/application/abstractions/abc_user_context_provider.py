@@ -2,20 +2,8 @@
 
 from abc import ABC, abstractmethod
 
+from application.abstractions.abc_user_id_provider import AbcUserIdProvider
 from application.domain.current_user import CurrentUser
-
-
-class AbcUserIdProvider(ABC):
-    """Abstract base class for providing the current user ID."""
-
-    @abstractmethod
-    def get_user_id(self) -> str:
-        """Get the current user id (e.g. from context variables).
-
-        Returns:
-            String representing the user ID, or a default string like 'UNKNOWN' if no user is present.
-        """
-        pass
 
 
 class AbcCurrentUserResolver(ABC):

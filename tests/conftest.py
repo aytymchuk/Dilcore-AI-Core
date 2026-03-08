@@ -56,7 +56,11 @@ def authenticated_client() -> Generator[TestClient, None, None]:
 
     from api.controllers.dependencies import get_blueprints_service
     from application.domain.current_user import CurrentUser
-    from infrastructure.auth import get_user_context_provider, verify_token
+    from infrastructure.auth import (
+        get_active_user_context_provider,
+        get_user_context_provider,
+        verify_token,
+    )
     from main import app
 
     # Mock resolver and user
@@ -71,6 +75,7 @@ def authenticated_client() -> Generator[TestClient, None, None]:
 
     app.dependency_overrides[get_blueprints_service] = lambda: MagicMock()
     app.dependency_overrides[verify_token] = mock_verify_token
+    app.dependency_overrides[get_active_user_context_provider] = lambda: mock_resolver
     app.dependency_overrides[get_user_context_provider] = lambda: mock_resolver
 
     with TestClient(app) as client:

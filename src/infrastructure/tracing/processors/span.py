@@ -2,7 +2,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import SpanProcessor
 
 from application.abstractions.abc_tenant_provider import AbcTenantProvider
-from application.abstractions.abc_user_context_provider import AbcUserContextProvider
+from application.abstractions.abc_user_id_provider import AbcUserIdProvider
 
 
 class TenantSpanProcessor(SpanProcessor):
@@ -11,7 +11,7 @@ class TenantSpanProcessor(SpanProcessor):
     into every span when it starts.
     """
 
-    def __init__(self, tenant_provider: AbcTenantProvider, user_provider: AbcUserContextProvider):
+    def __init__(self, tenant_provider: AbcTenantProvider, user_provider: AbcUserIdProvider):
         self._tenant_provider = tenant_provider
         self._user_provider = user_provider
 

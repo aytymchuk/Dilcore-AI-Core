@@ -9,6 +9,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ruff: noqa: E402
+
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -21,25 +23,22 @@ from api.middleware import setup_exception_handlers
 from api.openapi import setup_openapi
 from infrastructure.auth import verify_token
 from infrastructure.checkpoint.document_checkpointer import close_checkpointer
-from infrastructure.tracing import configure_tracing
+from infrastructure.tracing import configure_tracing, shutdown_tracing
 from shared.config import get_settings
-
-# VERY IMPORTANT: Configure tracing after logging but before FastAPI
-# This ensures that OpenTelemetry properly instruments the FastAPI application
-configure_tracing()
-
-# ruff: noqa: E402
-# (Imports moved up but E402 suppressed for clarify if needed,
-# though basicConfig is fine before imports if not using those libs yet)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan manager."""
+    # VERY IMPORTANT: Configure tracing after logging but before FastAPI setup
+    # This ensures that OpenTelemetry properly instruments the FastAPI application
+    configure_tracing()
+
     settings = get_settings()
     logger.info("Starting %s...", settings.app_name)
     logger.info("Using model: %s", settings.openrouter.model)
     yield
+    shutdown_tracing()
     close_checkpointer()
     logger.info("Shutting down %s...", settings.app_name)
 
@@ -92,7 +91,7 @@ def create_app() -> FastAPI:
 
     FastAPIInstrumentor().instrument_app(
         app,
-        excluded_urls="client/.*/info|/api/v1/health$",
+        excluded_urls="client/.*/info,/api/v1/health$",
         exclude_spans=["receive", "send"],
     )
 

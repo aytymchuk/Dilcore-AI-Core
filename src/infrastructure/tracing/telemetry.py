@@ -4,7 +4,7 @@ from azure.monitor.opentelemetry import configure_azure_monitor
 from opentelemetry.sdk.resources import Resource
 
 from application.abstractions.abc_tenant_provider import AbcTenantProvider
-from application.abstractions.abc_user_context_provider import AbcUserContextProvider
+from application.abstractions.abc_user_id_provider import AbcUserIdProvider
 from infrastructure.tracing.processors import (
     DependencyNameFixer,
     TenantLogFilter,
@@ -16,7 +16,7 @@ from shared.config.settings import Settings
 logger = logging.getLogger(__name__)
 
 
-def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserContextProvider, settings: Settings):
+def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserIdProvider, settings: Settings):
     """
     Configures Azure Monitor and attaches the custom processors.
     """

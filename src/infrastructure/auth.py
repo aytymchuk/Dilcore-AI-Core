@@ -7,6 +7,7 @@ from typing import Annotated
 
 import jwt
 from fastapi import Depends, HTTPException, Security, status
+from fastapi.concurrency import run_in_threadpool
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jwt import PyJWKClient
 
@@ -140,7 +141,13 @@ async def verify_token(
 ) -> None:
     """Verify the token is present and valid. Can be used as a simple endpoint protector."""
     try:
-        user_resolver.resolve_current_user()
+        # resolve_current_user is synchronous and blocks the event loop;
+        # offload it to a threadpool.
+        current_user = await run_in_threadpool(user_resolver.resolve_current_user)
+
+        # Re-populate the context for the current async thread/task
+        # so that get_user_context_provider() can retrieve it.
+        set_user_id(current_user.user_id)
     except AuthenticationError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
