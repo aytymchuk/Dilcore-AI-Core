@@ -6,7 +6,7 @@ import logging
 from typing import Annotated
 
 import jwt
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.security import OAuth2AuthorizationCodeBearer
 from jwt import PyJWKClient
@@ -102,28 +102,37 @@ class Auth0UserContextProvider(AbcUserContextProvider):
             raise AuthenticationError("Invalid token.") from e
 
 
-def get_oauth2_scheme() -> OAuth2AuthorizationCodeBearer:
-    settings = get_settings()
-    if settings.authentication.auth0 is None:
-        # Fallback for local development
-        return OAuth2AuthorizationCodeBearer(
-            authorizationUrl="/authorize",
-            tokenUrl="/token",
-        )
-    domain = settings.authentication.auth0.domain
-    audience = settings.authentication.auth0.audience
+def get_oauth2_scheme():
+    _scheme: OAuth2AuthorizationCodeBearer | None = None
 
-    # Auth0 typical URLs, appending audience to the authorization URL is required to get a JWT instead of an opaque token
-    authorization_url = f"https://{domain}/authorize?audience={audience}"
-    token_url = f"https://{domain}/oauth/token"
+    async def dependency(request: Request) -> str | None:
+        nonlocal _scheme
+        if _scheme is None:
+            settings = get_settings()
+            if settings.authentication.auth0 is None:
+                # Fallback for local development
+                _scheme = OAuth2AuthorizationCodeBearer(
+                    authorizationUrl="/authorize",
+                    tokenUrl="/token",
+                )
+            else:
+                domain = settings.authentication.auth0.domain
+                audience = settings.authentication.auth0.audience
 
-    return OAuth2AuthorizationCodeBearer(
-        authorizationUrl=authorization_url,
-        tokenUrl=token_url,
-    )
+                # Auth0 typical URLs, appending audience to the authorization URL is required to get a JWT instead of an opaque token
+                authorization_url = f"https://{domain}/authorize?audience={audience}"
+                token_url = f"https://{domain}/oauth/token"
+
+                _scheme = OAuth2AuthorizationCodeBearer(
+                    authorizationUrl=authorization_url,
+                    tokenUrl=token_url,
+                )
+        return await _scheme(request)
+
+    return dependency
 
 
-# Instantiate the scheme at module level
+# Instantiate the scheme dependency at module level
 oauth2_scheme = get_oauth2_scheme()
 AUTH_SCHEME = oauth2_scheme
 

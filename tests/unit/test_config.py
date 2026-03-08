@@ -151,8 +151,7 @@ class TestSettings:
         import pathlib
 
         appsettings_path = pathlib.Path(__file__).parents[2] / "appsettings.json"
-        if not appsettings_path.exists():
-            return  # Skip if file not present
+        assert appsettings_path.exists(), "appsettings.json fixture missing; tests require checked-in file"
 
         raw = json.loads(appsettings_path.read_text())
         ai_agent = raw.get("AIAgent", {})

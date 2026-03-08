@@ -60,7 +60,7 @@ class AuthenticationSettings(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
-    auth0: Auth0Settings = Field(default_factory=Auth0Settings, alias="Auth0")
+    auth0: Auth0Settings | None = Field(default=None, alias="Auth0")
 
 
 class MongoDBSettings(BaseModel):
@@ -201,11 +201,22 @@ class Settings(BaseSettings):
         """Customise settings sources to include Azure App Configuration."""
         from infrastructure.config.azure_appconfig import AzureAppConfigSettingsSource
 
+        init = init_settings()
+        env = env_settings()
+        dotenv = dotenv_settings()
+
+        endpoint = (
+            init.get("azure_appconfig_endpoint")
+            or env.get("azure_appconfig_endpoint")
+            or dotenv.get("azure_appconfig_endpoint")
+        )
+        environment = init.get("environment") or env.get("environment") or dotenv.get("environment")
+
         return (
             init_settings,
             env_settings,
             dotenv_settings,
-            AzureAppConfigSettingsSource(settings_cls),
+            AzureAppConfigSettingsSource(settings_cls, endpoint=endpoint, environment=environment),
             file_secret_settings,
         )
 

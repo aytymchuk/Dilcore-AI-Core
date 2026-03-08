@@ -106,4 +106,6 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
             settings.application.version,
         )
     else:
-        logger.warning("AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING not found. Telemetry not configured.")
+        logger.warning(
+            "settings.azure_telemetry.application_insights_connection_string not found. Telemetry not configured."
+        )

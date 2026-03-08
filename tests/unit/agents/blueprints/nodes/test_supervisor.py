@@ -12,6 +12,7 @@ from agents.blueprints.constants import (
     IDENTIFY_INTENT_ROUTE,
 )
 from agents.blueprints.nodes.supervisor import SupervisorDecision, SupervisorNode
+from shared.exceptions.base import LLMProviderError
 from shared.models import LLMDecision
 
 
@@ -81,7 +82,6 @@ async def test_supervisor_routes_to_generate(mock_llm):
 @pytest.mark.asyncio
 async def test_supervisor_raises_llm_provider_error_on_failure(mock_llm):
     """Supervisor should raise LLMProviderError on LLM error."""
-    from shared.exceptions.base import LLMProviderError
 
     mock_structured_llm = AsyncMock()
     mock_structured_llm.ainvoke.side_effect = Exception("LLM Error")

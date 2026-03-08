@@ -34,23 +34,43 @@ class AzureAppConfigSettingsSource(PydanticBaseSettingsSource):
         """Not used — values are returned as-is."""
         return value
 
+    def __init__(self, settings_cls, endpoint: str | None = None, environment: str | None = None):
+        super().__init__(settings_cls)
+        self.endpoint_override = endpoint
+        self.environment_override = environment
+
     def __call__(self) -> dict[str, Any]:
         """Fetch the AIAgent configuration from Azure App Configuration.
 
         Returns a dict matching the PascalCase JSON structure that Pydantic
         will map via field aliases (e.g. ``ApplicationSettings``, ``OpenRouterSettings``).
         """
-        endpoint = os.getenv("AZURE_APPCONFIG_ENDPOINT")
+        endpoint = self.endpoint_override
+        endpoint_source = "Settings"
+        if not endpoint:
+            endpoint = os.getenv("AZURE_APPCONFIG_ENDPOINT")
+            endpoint_source = "environment"
+
         if not endpoint:
             logger.debug("AZURE_APPCONFIG_ENDPOINT not set, skipping Azure App Config source.")
             return {}
 
-        environment = os.getenv("ENVIRONMENT", "Development")
+        environment = self.environment_override
+        env_source = "Settings"
+        if not environment:
+            environment = os.getenv("ENVIRONMENT")
+            env_source = "environment"
+            if not environment:
+                environment = "Development"
+                env_source = "defaults"
+
         logger.info(
-            "Loading configuration from Azure App Config: endpoint=%s, key=%s, label=%s",
+            "Loading configuration from Azure App Config: endpoint=%s (from %s), key=%s, label=%s (from %s)",
             endpoint,
+            endpoint_source,
             _APP_CONFIG_KEY,
             environment,
+            env_source,
         )
 
         try:
