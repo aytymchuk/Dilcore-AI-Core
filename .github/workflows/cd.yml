@@ -16,8 +16,8 @@ jobs:
   deploy-platform:
     uses: ./.github/workflows/build-and-deploy-container-app-v2.yml
     with:
-      componentName: "AI"
-      serviceName: "core"
+      componentName: "PLATFORM"
+      serviceName: "ai-core"
       dockerfile: "Dockerfile"
       environments: |
         [
