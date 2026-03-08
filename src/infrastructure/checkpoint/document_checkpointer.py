@@ -5,6 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 
 from langgraph.checkpoint.mongodb import MongoDBSaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pymongo import MongoClient
 
 from shared.config import get_settings
@@ -18,7 +19,12 @@ def get_checkpointer() -> MongoDBSaver:
     global _mongo_client  # noqa: PLW0603
     settings = get_settings()
     _mongo_client = MongoClient(settings.mongodb.connection_string)
-    return MongoDBSaver(_mongo_client, db_name=settings.mongodb.db_name)
+
+    # Explicitly allow agents.blueprints.models for msgpack deserialization
+    # to silence warnings for custom types (e.g., PlanAction).
+    serde = JsonPlusSerializer(allowed_msgpack_modules=("agents.blueprints.models",))
+
+    return MongoDBSaver(_mongo_client, db_name=settings.mongodb.db_name, serde=serde)
 
 
 def close_checkpointer() -> None:

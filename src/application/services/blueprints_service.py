@@ -182,12 +182,15 @@ class BlueprintsService:
 
     async def get_thread(self, thread_id: str) -> ThreadResponseDto | InterruptResponseDto:
         """Get the current state and messages of a thread."""
+        logger.info("Attempting to retrieve thread %s", thread_id)
         config = {"configurable": {"thread_id": thread_id}}
         state = await self._graph.aget_state(config)
 
         if not state or not state.values:
+            logger.warning("Thread %s not found in checkpoint store", thread_id)
             raise ResourceNotFoundError(f"Thread {thread_id} not found")
 
+        logger.info("Successfully retrieved thread %s", thread_id)
         messages = _format_messages(state.values)
         interrupts = _extract_interrupts(state)
 

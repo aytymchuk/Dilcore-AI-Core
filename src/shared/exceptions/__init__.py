@@ -2,6 +2,7 @@
 
 from .base import (
     AIAgentException,
+    AuthenticationError,
     ConfigurationError,
     LLMProviderError,
     ResourceNotFoundError,
@@ -10,6 +11,7 @@ from .base import (
 
 __all__ = [
     "AIAgentException",
+    "AuthenticationError",
     "ValidationError",
     "LLMProviderError",
     "ResourceNotFoundError",
