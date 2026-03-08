@@ -2,60 +2,108 @@
 
 from functools import lru_cache
 
-from pydantic import BaseModel, Field, SecretStr, computed_field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from dotenv import load_dotenv
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+# Load .env file into os.environ so that AzureAppConfigSettingsSource can read it via os.getenv
+load_dotenv()
+
+
+class ApplicationSettings(BaseModel):
+    """Application-level settings (maps to AIAgent.ApplicationSettings in JSON)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    name: str = Field(default="AI Template Agent", alias="Name")
+    version: str = Field(default="0.0.1-dev", alias="Version")
+    debug: bool = Field(default=False, alias="Debug")
+    log_level: str = Field(default="INFO", alias="LogLevel")
+    cors_origins: list[str] = Field(default=["*"], alias="CorsOrigins")
 
 
 class OpenRouterSettings(BaseModel):
-    """OpenRouter API configuration."""
+    """OpenRouter API configuration (maps to AIAgent.OpenRouterSettings in JSON)."""
 
-    api_key: SecretStr
-    base_url: str = "https://openrouter.ai/api/v1"
-    model: str = "openai/gpt-oss-20b:free"
+    model_config = ConfigDict(populate_by_name=True)
+
+    api_key: SecretStr = Field(alias="ApiKey")
+    base_url: str = Field(default="https://openrouter.ai/api/v1", alias="BaseUrl")
+    model: str = Field(default="openai/gpt-oss-20b:free", alias="Model")
 
 
 class Auth0Settings(BaseModel):
-    """Auth0 tenant and API configuration."""
+    """Auth0 tenant and API configuration (maps to AIAgent.AuthenticationSettings.Auth0 in JSON)."""
 
-    domain: str = Field(default="example.auth0.com", description="Auth0 tenant domain")
-    client_id: str = Field(default="placeholder_client_id", description="Auth0 client ID for OpenAPI / Swagger UI")
-    client_secret: SecretStr = Field(
-        default=SecretStr("placeholder_secret"), description="Auth0 client secret for OpenAPI / Swagger UI"
+    model_config = ConfigDict(populate_by_name=True)
+
+    domain: str = Field(default="example.auth0.com", alias="Domain", description="Auth0 tenant domain")
+    client_id: str = Field(
+        default="placeholder_client_id", alias="ClientId", description="Auth0 client ID for OpenAPI / Swagger UI"
     )
-    audience: str = Field(default="https://api.example.com", description="Auth0 API audience identifier")
+    client_secret: SecretStr = Field(
+        default=SecretStr("placeholder_secret"),
+        alias="ClientSecret",
+        description="Auth0 client secret for OpenAPI / Swagger UI",
+    )
+    audience: str = Field(
+        default="https://api.example.com", alias="Audience", description="Auth0 API audience identifier"
+    )
+
+
+class AuthenticationSettings(BaseModel):
+    """Wrapper for authentication providers (maps to AIAgent.AuthenticationSettings in JSON)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    auth0: Auth0Settings = Field(default_factory=Auth0Settings, alias="Auth0")
 
 
 class MongoDBSettings(BaseModel):
-    """MongoDB configuration for LangGraph checkpointer persistence."""
+    """MongoDB configuration for LangGraph checkpointer persistence (maps to AIAgent.MongoDbSettings in JSON)."""
+
+    model_config = ConfigDict(populate_by_name=True)
 
     connection_string: str = Field(
         default="mongodb://localhost:27017",
+        alias="ConnectionString",
         description="MongoDB connection string",
     )
     db_name: str = Field(
         default="langgraph_checkpoints",
+        alias="DbName",
         description="Database name for checkpoint storage",
     )
 
 
 class VectorStoreSettings(BaseModel):
-    """FAISS vector store configuration with separate indices for metadata and data."""
+    """FAISS vector store configuration (maps to AIAgent.VectorStoreSettings in JSON)."""
 
-    provider: str = Field(default="faiss", description="Vector store provider (faiss)")
+    model_config = ConfigDict(populate_by_name=True)
+
+    provider: str = Field(default="faiss", alias="Provider", description="Vector store provider (faiss)")
     base_path: str = Field(
         default="./data/vector_store",
+        alias="BasePath",
         description="Base path for FAISS indices",
     )
     metadata_index_name: str = Field(
         default="metadata_index",
+        alias="MetadataIndexName",
         description="Name of the metadata index (forms, views, entities, etc.)",
     )
     data_index_name: str = Field(
         default="data_index",
+        alias="DataIndexName",
         description="Name of the data index (actual records)",
     )
     embedding_model: str = Field(
         default="openai/text-embedding-3-small",
+        alias="EmbeddingModel",
         description="Embedding model to use via OpenRouter",
     )
 
@@ -72,39 +120,94 @@ class VectorStoreSettings(BaseModel):
         return f"{self.base_path}/{self.data_index_name}"
 
 
+class AzureTelemetrySettings(BaseModel):
+    """Azure telemetry configuration (maps to AIAgent.AzureTelemetry in JSON)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    application_insights_connection_string: str = Field(
+        default="",
+        alias="ApplicationInsightsConnectionString",
+        description="Azure Application Insights connection string for OpenTelemetry",
+    )
+
+
+class LangSmithSettings(BaseModel):
+    """LangSmith/LangChain tracing configuration (maps to AIAgent.LangSmithSettings in JSON)."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    tracing_enabled: bool = Field(default=False, alias="TracingEnabled")
+    endpoint: str = Field(default="https://api.smith.langchain.com", alias="Endpoint")
+    api_key: SecretStr = Field(default=SecretStr(""), alias="ApiKey")
+    project: str = Field(default="Dilcore AI Agent", alias="Project")
+
+
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+    """Application settings loaded from environment variables or Azure App Configuration.
+
+    Settings can be loaded from:
+    1. Constructor arguments (highest priority)
+    2. Environment variables
+    3. .env file
+    4. Azure App Configuration (key=AIAgent, label=ENVIRONMENT)
+    5. File secrets (lowest priority)
+    """
 
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         env_nested_delimiter="__",
         extra="ignore",
+        populate_by_name=True,
     )
 
-    # Application
-    app_name: str = "AI Template Agent"
-    app_version: str = "0.0.1-dev"
-    app_debug: bool = False
-    log_level: str = "INFO"
-    cors_origins: list[str] = Field(default=["*"], description="Allowed CORS origins")
+    # Bootstrap settings (always from env, not from JSON)
+    environment: str = Field(default="Development", description="Environment name used as App Config label")
+    azure_appconfig_endpoint: str = Field(default="", description="Azure App Configuration endpoint URL")
 
-    # OpenRouter - uses OPENROUTER__API_KEY, OPENROUTER__BASE_URL, etc.
-    openrouter: OpenRouterSettings
+    # Application settings (maps to AIAgent.ApplicationSettings)
+    application: ApplicationSettings = Field(default_factory=ApplicationSettings, alias="ApplicationSettings")
 
-    # Auth0 - uses AUTH0__DOMAIN, AUTH0__CLIENT_ID, etc.
-    auth0: Auth0Settings | None = Field(default_factory=Auth0Settings)
+    # OpenRouter (maps to AIAgent.OpenRouterSettings)
+    openrouter: OpenRouterSettings = Field(alias="OpenRouterSettings")
 
-    # MongoDB - uses MONGODB__CONNECTION_STRING, MONGODB__DB_NAME
-    mongodb: MongoDBSettings = Field(default_factory=MongoDBSettings)
-
-    # Vector Store - uses VECTOR_STORE__BASE_PATH, VECTOR_STORE__EMBEDDING_MODEL, etc.
-    vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings)
-
-    # Azure Telemetry
-    azure_application_insights_connection_string: str = Field(
-        default="", description="Azure Application Insights connection string for OpenTelemetry"
+    # Authentication (maps to AIAgent.AuthenticationSettings)
+    authentication: AuthenticationSettings = Field(
+        default_factory=AuthenticationSettings, alias="AuthenticationSettings"
     )
+
+    # MongoDB (maps to AIAgent.MongoDbSettings)
+    mongodb: MongoDBSettings = Field(default_factory=MongoDBSettings, alias="MongoDbSettings")
+
+    # Vector Store (maps to AIAgent.VectorStoreSettings)
+    vector_store: VectorStoreSettings = Field(default_factory=VectorStoreSettings, alias="VectorStoreSettings")
+
+    # Azure Telemetry (maps to AIAgent.AzureTelemetry)
+    azure_telemetry: AzureTelemetrySettings = Field(default_factory=AzureTelemetrySettings, alias="AzureTelemetry")
+
+    # LangSmith (maps to AIAgent.LangSmithSettings)
+    langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings, alias="LangSmithSettings")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customise settings sources to include Azure App Configuration."""
+        from infrastructure.config.azure_appconfig import AzureAppConfigSettingsSource
+
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            AzureAppConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
 
 @lru_cache

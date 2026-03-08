@@ -35,12 +35,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     configure_tracing()
 
     settings = get_settings()
-    logger.info("Starting %s...", settings.app_name)
+    logger.info("Starting %s...", settings.application.name)
     logger.info("Using model: %s", settings.openrouter.model)
     yield
     shutdown_tracing()
     close_checkpointer()
-    logger.info("Shutting down %s...", settings.app_name)
+    logger.info("Shutting down %s...", settings.application.name)
 
 
 def create_app() -> FastAPI:
@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title=settings.app_name,
+        title=settings.application.name,
         description="AI Agent for handling user intents and creating custom blueprints.",
         version="0.2.0",
         docs_url=None,
@@ -58,8 +58,8 @@ def create_app() -> FastAPI:
 
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_credentials="*" not in settings.cors_origins,
+        allow_origins=settings.application.cors_origins,
+        allow_credentials="*" not in settings.application.cors_origins,
         allow_methods=["*"],
         allow_headers=["*"],
     )

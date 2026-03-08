@@ -79,8 +79,10 @@ async def test_supervisor_routes_to_generate(mock_llm):
 
 
 @pytest.mark.asyncio
-async def test_supervisor_fallback_to_identify_intent(mock_llm):
-    """Supervisor should fallback to IDENTIFY_INTENT_ROUTE on LLM error."""
+async def test_supervisor_raises_llm_provider_error_on_failure(mock_llm):
+    """Supervisor should raise LLMProviderError on LLM error."""
+    from shared.exceptions.base import LLMProviderError
+
     mock_structured_llm = AsyncMock()
     mock_structured_llm.ainvoke.side_effect = Exception("LLM Error")
     mock_llm.with_structured_output.return_value = mock_structured_llm
@@ -88,9 +90,8 @@ async def test_supervisor_fallback_to_identify_intent(mock_llm):
     node = SupervisorNode(mock_llm)
     state = {"messages": [], "current_phase": ""}
 
-    result = await node(state)
-
-    assert result.goto == IDENTIFY_INTENT_ROUTE
+    with pytest.raises(LLMProviderError, match="Failed to generate supervisor decision: LLM Error"):
+        await node(state)
 
 
 @pytest.mark.asyncio

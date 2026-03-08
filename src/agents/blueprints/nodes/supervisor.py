@@ -13,6 +13,7 @@ from agents.blueprints.constants import (
 )
 from agents.blueprints.prompts import SUPERVISOR_SYSTEM_PROMPT
 from agents.blueprints.state import BlueprintsState
+from shared.exceptions.base import LLMProviderError
 from shared.models import LLMDecision
 
 logger = logging.getLogger(__name__)
@@ -52,10 +53,9 @@ class SupervisorNode:
             output: LLMDecision[SupervisorDecision] = await self._structured_llm.ainvoke(messages)
             route = output.decision.next_route
             reasoning = output.reasoning
-        except Exception:
-            logger.exception("Failed to parse supervisor decision. Falling back to %s.", IDENTIFY_INTENT_ROUTE)
-            route = IDENTIFY_INTENT_ROUTE
-            reasoning = "Failed to parse model output or recognize intent."
+        except Exception as e:
+            logger.exception("Failed to parse supervisor decision.")
+            raise LLMProviderError(f"Failed to generate supervisor decision: {e}") from e
 
         if route not in ALL_ROUTES:
             logger.warning("Unexpected route from LLM: %s. Falling back to %s.", route, IDENTIFY_INTENT_ROUTE)

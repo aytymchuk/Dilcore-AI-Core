@@ -20,7 +20,7 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
     """
     Configures Azure Monitor and attaches the custom processors.
     """
-    connection_string = settings.azure_application_insights_connection_string
+    connection_string = settings.azure_telemetry.application_insights_connection_string
 
     if connection_string:
         # Configure Azure Monitor Distro
@@ -30,8 +30,8 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
         # Create explicit resource object for Azure Monitor
         resource = Resource.create(
             {
-                "service.name": settings.app_name,
-                "service.version": settings.app_version,
+                "service.name": settings.application.name,
+                "service.version": settings.application.version,
             }
         )
 
@@ -102,8 +102,8 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
 
         logger.info(
             "Azure Monitor telemetry initialized for %s (%s) with custom processors.",
-            settings.app_name,
-            settings.app_version,
+            settings.application.name,
+            settings.application.version,
         )
     else:
         logger.warning("AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING not found. Telemetry not configured.")
