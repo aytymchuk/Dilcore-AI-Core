@@ -45,21 +45,26 @@ def setup_openapi(app: FastAPI) -> None:
 
     @app.get("/scalar", include_in_schema=False)
     async def scalar_docs():
-        return get_scalar_api_reference(
-            openapi_url=app.openapi_url,
-            title=f"{settings.application.name} - API Reference",
-            authentication={
+        auth0 = settings.authentication.auth0
+        authentication = None
+        if auth0 is not None:
+            authentication = {
                 "preferredSecurityScheme": "OAuth2AuthorizationCodeBearer",
                 "securitySchemes": {
                     "OAuth2AuthorizationCodeBearer": {
                         "flows": {
                             "authorizationCode": {
-                                "x-scalar-client-id": settings.authentication.auth0.client_id,
-                                "clientSecret": settings.authentication.auth0.client_secret.get_secret_value(),
+                                "x-scalar-client-id": auth0.client_id,
+                                "clientSecret": auth0.client_secret.get_secret_value(),
                                 "selectedScopes": ["openid", "profile", "email"],
                             }
                         }
                     }
                 },
-            },
+            }
+
+        return get_scalar_api_reference(
+            openapi_url=app.openapi_url,
+            title=f"{settings.application.name} - API Reference",
+            authentication=authentication,
         )

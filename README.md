@@ -45,7 +45,7 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
    ```
 
 5. **Open API docs**
-   - Navigate to <http://localhost:8000/scalar>
+   - Navigate to <http://localhost:8080/scalar>
 
 ## API Endpoints
 
@@ -69,7 +69,7 @@ A Python AI agent built with LangChain and OpenRouter that generates structured 
 The `/generate-stream` endpoint uses Server-Sent Events (SSE) for real-time generation:
 
 ```bash
-curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
+curl -X POST http://localhost:8080/api/v1/metadata/generate-stream \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Create a user registration form"}' \
   --no-buffer
@@ -177,15 +177,15 @@ We also have convenience scripts for common tasks:
 
 ```bash
 # Health check
-curl http://localhost:8000/api/v1/health
+curl http://localhost:8080/api/v1/health
 
 # Generate template (sync)
-curl -X POST http://localhost:8000/api/v1/metadata/generate \
+curl -X POST http://localhost:8080/api/v1/metadata/generate \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Create a contact form"}'
 
 # Generate template (streaming)
-curl -X POST http://localhost:8000/api/v1/metadata/generate-stream \
+curl -X POST http://localhost:8080/api/v1/metadata/generate-stream \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Create a user registration form"}' \
   --no-buffer
