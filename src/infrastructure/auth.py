@@ -40,7 +40,7 @@ class Auth0UserContextProvider(AbcUserContextProvider):
     """Auth0 implementation of AbcUserContextProvider."""
 
     def __init__(self, token: str, settings: Settings):
-        if settings.auth0 is None:
+        if settings.authentication.auth0 is None:
             raise ConfigurationError("Auth0 settings are missing.")
         self._token = token
         self.settings = settings
@@ -62,12 +62,12 @@ class Auth0UserContextProvider(AbcUserContextProvider):
         if self._resolved_user:
             return self._resolved_user
 
-        if self.settings.auth0 is None:
+        if self.settings.authentication.auth0 is None:
             raise ConfigurationError("Auth0 settings are missing.")
 
         token = self._token
-        domain = self.settings.auth0.domain
-        audience = self.settings.auth0.audience
+        domain = self.settings.authentication.auth0.domain
+        audience = self.settings.authentication.auth0.audience
 
         jwks_client = get_jwks_client(domain)
 
@@ -103,17 +103,19 @@ class Auth0UserContextProvider(AbcUserContextProvider):
 
 
 def get_oauth2_scheme() -> OAuth2AuthorizationCodeBearer:
+    """Build an OAuth2 scheme dependency that FastAPI can inspect for OpenAPI."""
     settings = get_settings()
-    if settings.auth0 is None:
+    if settings.authentication.auth0 is None:
         # Fallback for local development
         return OAuth2AuthorizationCodeBearer(
             authorizationUrl="/authorize",
             tokenUrl="/token",
         )
-    domain = settings.auth0.domain
-    audience = settings.auth0.audience
 
-    # Auth0 typical URLs, appending audience to the authorization URL is required to get a JWT instead of an opaque token
+    domain = settings.authentication.auth0.domain
+    audience = settings.authentication.auth0.audience
+
+    # Appending audience is required to get a JWT instead of an opaque token.
     authorization_url = f"https://{domain}/authorize?audience={audience}"
     token_url = f"https://{domain}/oauth/token"
 
@@ -123,9 +125,9 @@ def get_oauth2_scheme() -> OAuth2AuthorizationCodeBearer:
     )
 
 
-# Instantiate the scheme at module level
-oauth2_scheme = get_oauth2_scheme()
-AUTH_SCHEME = oauth2_scheme
+# Instantiate the scheme dependency at module level
+AUTH_SCHEME = get_oauth2_scheme()
+oauth2_scheme = AUTH_SCHEME
 
 
 async def get_active_user_context_provider(

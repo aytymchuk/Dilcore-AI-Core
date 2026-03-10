@@ -17,16 +17,16 @@ ENV UV_LINK_MODE=copy
 # Install the project's dependencies from the lockfile and pyproject.toml
 # Use a cache mount to speed up subsequent builds
 RUN --mount=type=cache,target=/root/.cache/uv \
-    --mount=type=bind,source=uv.lock,target=uv.lock \
-    --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
-    uv sync --frozen --no-install-project --no-dev
+  --mount=type=bind,source=uv.lock,target=uv.lock \
+  --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
+  uv sync --frozen --no-install-project --no-dev
 
 # Copy the rest of the source code
 COPY . /app
 
 # Install the project itself
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+  uv sync --frozen --no-dev
 
 
 # Final image
@@ -54,12 +54,12 @@ ENV PYTHONPATH="/app/src"
 USER appuser
 
 # Expose the port
-EXPOSE 8000
+EXPOSE 8080
 
 # Health check (Docker internal)
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:8000/api/v1/health || exit 1
+  CMD curl -f http://localhost:8080/api/v1/health || exit 1
 
 # Run the application
 # We use --app-dir src to ensure the 'api', 'shared', etc. packages are found
-CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--app-dir", "src", "--host", "0.0.0.0", "--port", "8080"]

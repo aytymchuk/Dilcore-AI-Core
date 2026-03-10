@@ -17,7 +17,7 @@ async def health_check(settings: SettingsDep) -> dict[str, Any]:
     """Health check endpoint."""
     return {
         "status": "healthy",
-        "app_name": settings.app_name,
+        "app_name": settings.application.name,
         "model": settings.openrouter.model,
         "version": os.getenv("APP_VERSION", "0.0.0"),
     }
