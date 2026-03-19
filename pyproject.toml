@@ -11,14 +11,14 @@ authors = [
 
 dependencies = [
     "fastapi[standard]>=0.115.0",
-    "scalar-fastapi==1.6.1",
-    "sse-starlette>=2.1.0,<2.2.0",
+    "scalar-fastapi==1.8.1",
+    "sse-starlette>=2.1.0,<3.4.0",
     "langchain>=0.3.27",
     "langchain-openai>=0.3.0",
     "langchain-community>=0.3.0",
     "langgraph>=0.2.83",
     "langgraph-checkpoint-mongodb>=0.3.0",
-    "pymongo>=4.12,<4.16",
+    "pymongo>=4.12,<4.17",
     "langchain-core>=0.3.83",
     "faiss-cpu>=1.8.0",
     "pydantic-settings>=2.0.0",
