@@ -42,10 +42,11 @@ def _problem_json(
 
 
 class TenantResolutionMiddleware(BaseHTTPMiddleware):
-    """Resolve tenant early: ``x-tenant`` for context ordering; platform API when Bearer token is present.
+    """Resolve tenant early: ``x-tenant`` for context ordering; platform API when Bearer + ``x-tenant``.
 
-    Stores :class:`~application.domain.tenant.TenantInfo` in request context for
-    :class:`HeaderTenantProvider` (checkpointer, OpenTelemetry, etc.).
+    Platform fetch is gated on ``x-tenant`` so Bearer-only routes (e.g. ``/api/v1/users``) are not
+    blocked on tenant API latency. Stores :class:`~application.domain.tenant.TenantInfo` for
+    :class:`HeaderTenantProvider` when resolution runs.
     """
 
     async def dispatch(self, request: Request, call_next):
@@ -58,64 +59,62 @@ class TenantResolutionMiddleware(BaseHTTPMiddleware):
             _tenant_id_var.set(x_tenant_header)
 
         auth = request.headers.get("authorization")
-        if auth and auth.lower().startswith("bearer "):
-            token = auth[7:].strip()
-            if token:
-                settings = get_settings()
-                try:
-                    info = await fetch_current_tenant_async(
-                        str(settings.api_settings.base_url),
-                        token,
-                        timeout_seconds=settings.api_settings.tenant_http_timeout_seconds,
-                        x_tenant=x_tenant_header,
-                        max_retries=settings.api_settings.tenant_http_max_retries,
-                        retry_base_delay_seconds=settings.api_settings.tenant_http_retry_base_seconds,
-                        retry_max_delay_seconds=settings.api_settings.tenant_http_retry_max_delay_seconds,
-                    )
-                    set_resolved_tenant_info(info)
-                    _tenant_id_var.set(info.name)
-                    logger.debug(
-                        "Middleware resolved tenant id=%s storage_identifier=%s",
-                        info.id,
-                        info.storage_identifier,
-                    )
-                except httpx.TimeoutException as exc:
-                    logger.error("Platform tenant API timeout: %s", exc)
-                    return _problem_json(
-                        request,
-                        status_code=504,
-                        title="Gateway Timeout",
-                        detail="The platform API did not respond in time while resolving the tenant.",
-                        problem_type="tenant-resolution-timeout",
-                    )
-                except httpx.HTTPStatusError as exc:
-                    upstream = exc.response.status_code
-                    logger.warning("Platform tenant API HTTP %s", upstream)
-                    return _problem_json(
-                        request,
-                        status_code=502,
-                        title="Tenant Resolution Failed",
-                        detail=f"Platform tenant API returned HTTP {upstream}.",
-                        problem_type="tenant-resolution-http-error",
-                    )
-                except httpx.RequestError as exc:
-                    logger.warning("Platform tenant API request error: %s", exc)
-                    return _problem_json(
-                        request,
-                        status_code=503,
-                        title="Service Unavailable",
-                        detail="Could not reach the platform API to resolve the tenant.",
-                        problem_type="tenant-resolution-unavailable",
-                    )
-                except Exception:
-                    logger.exception("Unexpected error resolving tenant from platform API")
-                    return _problem_json(
-                        request,
-                        status_code=503,
-                        title="Service Unavailable",
-                        detail="Unexpected error while resolving tenant from the platform API.",
-                        problem_type="tenant-resolution-failed",
-                    )
+        if auth and auth.lower().startswith("bearer ") and x_tenant_header and (token := auth[7:].strip()):
+            settings = get_settings()
+            try:
+                info = await fetch_current_tenant_async(
+                    str(settings.api_settings.base_url),
+                    token,
+                    timeout_seconds=settings.api_settings.tenant_http_timeout_seconds,
+                    x_tenant=x_tenant_header,
+                    max_retries=settings.api_settings.tenant_http_max_retries,
+                    retry_base_delay_seconds=settings.api_settings.tenant_http_retry_base_seconds,
+                    retry_max_delay_seconds=settings.api_settings.tenant_http_retry_max_delay_seconds,
+                )
+                set_resolved_tenant_info(info)
+                _tenant_id_var.set(info.id)
+                logger.debug(
+                    "Middleware resolved tenant id=%s storage_identifier=%s",
+                    info.id,
+                    info.storage_identifier,
+                )
+            except httpx.TimeoutException as exc:
+                logger.error("Platform tenant API timeout: %s", exc)
+                return _problem_json(
+                    request,
+                    status_code=504,
+                    title="Gateway Timeout",
+                    detail="The platform API did not respond in time while resolving the tenant.",
+                    problem_type="tenant-resolution-timeout",
+                )
+            except httpx.HTTPStatusError as exc:
+                upstream = exc.response.status_code
+                logger.warning("Platform tenant API HTTP %s", upstream)
+                return _problem_json(
+                    request,
+                    status_code=502,
+                    title="Tenant Resolution Failed",
+                    detail=f"Platform tenant API returned HTTP {upstream}.",
+                    problem_type="tenant-resolution-http-error",
+                )
+            except httpx.RequestError as exc:
+                logger.warning("Platform tenant API request error: %s", exc)
+                return _problem_json(
+                    request,
+                    status_code=503,
+                    title="Service Unavailable",
+                    detail="Could not reach the platform API to resolve the tenant.",
+                    problem_type="tenant-resolution-unavailable",
+                )
+            except Exception:
+                logger.exception("Unexpected error resolving tenant from platform API")
+                return _problem_json(
+                    request,
+                    status_code=503,
+                    title="Service Unavailable",
+                    detail="Unexpected error while resolving tenant from the platform API.",
+                    problem_type="tenant-resolution-failed",
+                )
 
         return await call_next(request)
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 from collections.abc import AsyncIterator, Iterator, Sequence
@@ -28,13 +29,20 @@ logger = logging.getLogger(__name__)
 
 _mongo_client: MongoClient | None = None
 
-# Cache of per-tenant MongoDBSavers keyed by resolved database name
-_checkpointer_cache: dict[str, MongoDBSaver | NoOpCheckpointer] = {}
+# Cache of per-tenant MongoDBSavers keyed by resolved database name (no NoOp fallback cached).
+_checkpointer_cache: dict[str, MongoDBSaver] = {}
 
 # Max MongoDB database name length is 64 bytes; leave headroom for suffix.
 _MONGO_DB_NAME_MAX = 63
 _CHECKPOINT_DB_SUFFIX = "_langgraph_cp"
+# ASCII hex suffix from original storage_identifier to avoid collisions after sanitization/truncation.
+_STORAGE_ID_HASH_HEX_LEN = 8
 _DEFAULT_CHECKPOINT_STORAGE_ID = "default"
+
+
+def _storage_identifier_hash_suffix(storage_identifier: str) -> str:
+    digest = hashlib.sha256(storage_identifier.encode("utf-8")).hexdigest()
+    return digest[:_STORAGE_ID_HASH_HEX_LEN]
 
 
 def _storage_identifier_for_checkpointer(tenant_provider: AbcTenantProvider) -> str:
@@ -57,17 +65,25 @@ def _storage_identifier_for_checkpointer(tenant_provider: AbcTenantProvider) -> 
 
 
 def _sanitize_storage_id_for_db_name(storage_identifier: str) -> str:
-    """Make ``storage_identifier`` safe for use as a MongoDB database name segment."""
+    """Human-readable ASCII-safe segment plus deterministic hash (avoids collisions after truncation).
+
+    Layout: ``{truncated_readable}_{hash}{_CHECKPOINT_DB_SUFFIX}`` is built in
+    :func:`_checkpoint_database_name`; this returns only ``{truncated_readable}_{hash}`` prefix
+    before the fixed ``_langgraph_cp`` suffix.
+    """
     # Disallowed in MongoDB DB names: / \ . " * < > : | ? $ and space (avoid oddities)
     cleaned = re.sub(r"[/\\.\"*<>:|?\s$]", "_", storage_identifier.strip())
     cleaned = re.sub(r"_+", "_", cleaned).strip("_") or "default"
     # Alphanumeric + underscore only for the segment (ASCII-safe)
     cleaned = re.sub(r"[^a-zA-Z0-9_]", "_", cleaned)
     cleaned = re.sub(r"_+", "_", cleaned).strip("_") or "default"
-    max_segment = _MONGO_DB_NAME_MAX - len(_CHECKPOINT_DB_SUFFIX)
-    if len(cleaned) > max_segment:
-        cleaned = cleaned[:max_segment].rstrip("_") or "default"
-    return cleaned
+    # Reserve: '_' + hex hash + _CHECKPOINT_DB_SUFFIX (e.g. _a1b2c3d4_langgraph_cp)
+    reserved = 1 + _STORAGE_ID_HASH_HEX_LEN + len(_CHECKPOINT_DB_SUFFIX)
+    max_readable = _MONGO_DB_NAME_MAX - reserved
+    if len(cleaned) > max_readable:
+        cleaned = cleaned[:max_readable].rstrip("_") or "default"
+    h = _storage_identifier_hash_suffix(storage_identifier)
+    return f"{cleaned}_{h}"
 
 
 def _checkpoint_database_name(storage_identifier: str) -> str:
@@ -205,9 +221,11 @@ class NoOpCheckpointer(BaseCheckpointSaver):
 def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBSaver | NoOpCheckpointer:
     """Return a MongoDBSaver in a dedicated database derived from ``storage_identifier``.
 
-    Each tenant/storage id gets its own MongoDB database (name: ``<sanitized>_langgraph_cp``)
-    with standard ``checkpoints`` / ``checkpoint_writes`` collections. Savers are cached
-    in-memory per database name.
+    Each tenant/storage id gets its own MongoDB database (name:
+    ``<sanitized_readable>_<hash8>_langgraph_cp``) with standard ``checkpoints`` /
+    ``checkpoint_writes`` collections. Successful savers are cached in-memory; a
+    failed ``MongoDBSaver`` init returns a non-cached ``NoOpCheckpointer`` so the next
+    call can retry.
     """
     if not storage_identifier:
         raise ValueError("storage_identifier must be a non-empty string")
@@ -236,16 +254,15 @@ def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBS
             writes_collection_name="checkpoint_writes",
             serde=serde,
         )
-        used_saver = saver
     except Exception:
         logger.exception(
-            "MongoDBSaver init failed for db_name=%s; using no-op checkpointer",
+            "MongoDBSaver init failed for db_name=%s; using no-op checkpointer (not cached)",
             db_name,
         )
-        used_saver = NoOpCheckpointer()
+        return NoOpCheckpointer()
 
-    _checkpointer_cache[db_name] = used_saver
-    return used_saver
+    _checkpointer_cache[db_name] = saver
+    return saver
 
 
 def get_checkpointer_for_tenant_provider(

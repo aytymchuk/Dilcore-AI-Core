@@ -35,16 +35,28 @@ class CurrentTenantProvider(AbcTenantProvider):
         return get_access_token()
 
     def _load_tenant(self) -> TenantInfo:
+        now = time.time()
+        token = self._current_token()
+        cached = self._cached_tenant
+        if cached is not None and now < self._cache_expiry and self._cached_token == token:
+            logger.debug(
+                "Tenant resolver cache hit id=%s storage_identifier=%s",
+                cached.id,
+                cached.storage_identifier,
+            )
+            return cached
+
         with self._cache_lock:
             now = time.time()
             token = self._current_token()
             if self._cached_tenant is not None and now < self._cache_expiry and self._cached_token == token:
+                t = self._cached_tenant
                 logger.debug(
                     "Tenant resolver cache hit id=%s storage_identifier=%s",
-                    self._cached_tenant.id,
-                    self._cached_tenant.storage_identifier,
+                    t.id,
+                    t.storage_identifier,
                 )
-                return self._cached_tenant
+                return t
 
             logger.info("Tenant resolver: fetching current tenant from platform API")
             tenant = self._client.get_current_tenant()
