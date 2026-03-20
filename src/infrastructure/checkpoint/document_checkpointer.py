@@ -78,7 +78,7 @@ def get_checkpointer() -> MongoDBSaver:
     settings = get_settings()
     if _mongo_client is None:
         _mongo_client = MongoClient(settings.mongodb.connection_string)
-    serde = JsonPlusSerializer()
+    serde = JsonPlusSerializer(allowed_msgpack_modules=("agents.blueprints.models",))
     return MongoDBSaver(_mongo_client, db_name=settings.mongodb.db_name, serde=serde)
 
 
