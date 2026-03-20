@@ -72,7 +72,7 @@ class TenantResolutionMiddleware(BaseHTTPMiddleware):
                     retry_max_delay_seconds=settings.api_settings.tenant_http_retry_max_delay_seconds,
                 )
                 set_resolved_tenant_info(info)
-                _tenant_id_var.set(info.id)
+                _tenant_id_var.set(info.name)
                 logger.debug(
                     "Middleware resolved tenant id=%s storage_identifier=%s",
                     info.id,
