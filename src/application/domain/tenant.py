@@ -19,4 +19,4 @@ class TenantInfo(BaseModel):
     storageIdentifier: str = Field(alias="storageIdentifier")
     createdAt: datetime = Field(alias="createdAt")
 
-    model_config = ConfigDict(validate_by_name=True)
+    model_config = ConfigDict(populate_by_name=True)
