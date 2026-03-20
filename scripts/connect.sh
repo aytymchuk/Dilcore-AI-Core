@@ -12,20 +12,8 @@ install_dependencies() {
   echo "Installing/upgrading Python dependencies..."
   # Upgrade pip first
   "$VENV_DIR/bin/python" -m pip install --upgrade pip >/dev/null 2>&1 || true
-  # Core server dependencies (adjust as needed)
-  "$VENV_DIR/bin/pip" install --upgrade \
-    uvicorn[standard]>=0.34.0 \
-    fastapi[standard]>=0.115.0 \
-    scalar-fastapi==1.6.1 \
-    sse-starlette>=2.1.0,<2.2.0 \
-    httpx>=0.27.0 \
-    pydantic-settings>=2.0.0 \
-    python-dotenv>=1.0.0 \
-    langchain>=0.3.27 \
-    langgraph>=0.2.83 \
-    pymongo>=4.12,<4.16 \
-    cryptography>=44.0.0 \
-    PyJWT>=2.10.1
+  # Install dependencies from pyproject.toml in editable mode for development
+  "$VENV_DIR/bin/pip" install --upgrade -e "$PROJECT_ROOT"
 }
 
 if [ ! -d "$VENV_DIR" ]; then
