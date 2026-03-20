@@ -152,10 +152,10 @@ def extract_tenant_header(
     """Require ``x-tenant`` and sync token into request context; do not overwrite API-resolved tenant id."""
     if get_resolved_tenant_info() is None:
         _tenant_id_var.set(x_tenant)
-    if authorization:
+    if authorization and authorization.lower().startswith("bearer "):
         from infrastructure.http.request_context import set_access_token
 
-        token = authorization.removeprefix("Bearer ").removeprefix("bearer ").strip()
+        token = authorization[7:].strip()
         set_access_token(token)
 
     return x_tenant
