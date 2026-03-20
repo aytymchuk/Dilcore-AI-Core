@@ -2,6 +2,7 @@
 
 import logging
 
+import httpx
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
@@ -77,6 +78,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException) 
     return JSONResponse(status_code=status_code, content=problem.model_dump())
 
 
+async def httpx_timeout_exception_handler(request: Request, exc: httpx.TimeoutException) -> JSONResponse:
+    """Platform / outbound HTTP calls exceeded timeout (e.g. tenant resolution)."""
+    logger.error("HTTP client timeout: %s: %s", type(exc).__name__, exc)
+    problem = create_problem_details(
+        request,
+        "upstream-timeout",
+        "Gateway Timeout",
+        status.HTTP_504_GATEWAY_TIMEOUT,
+        "An upstream service did not respond in time (tenant or platform API).",
+    )
+    return JSONResponse(status_code=status.HTTP_504_GATEWAY_TIMEOUT, content=problem.model_dump())
+
+
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """Catch-all handler for unhandled exceptions."""
     logger.exception("Unhandled exception: %s", str(exc))
@@ -95,5 +109,6 @@ def setup_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AIAgentException, ai_agent_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(httpx.TimeoutException, httpx_timeout_exception_handler)
     app.add_exception_handler(Exception, unhandled_exception_handler)
     logger.info("Exception handlers registered for Problem Details format")

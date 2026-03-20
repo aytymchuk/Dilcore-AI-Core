@@ -1,6 +1,8 @@
 """Pytest fixtures and configuration."""
 
 from collections.abc import Generator
+from datetime import UTC
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,6 +40,30 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
     from shared.config.settings import get_settings
 
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def mock_fetch_current_tenant_async(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid real platform HTTP from :class:`TenantResolutionMiddleware` in tests."""
+
+    from datetime import datetime
+
+    from application.domain.tenant import TenantInfo
+
+    async def _fake(base_url: str, bearer_token: str, **kwargs: Any) -> TenantInfo:
+        return TenantInfo(
+            id="test-tenant",
+            name="test-tenant",
+            systemName="test-tenant",
+            description=None,
+            storageIdentifier="test-storage",
+            createdAt=datetime.now(UTC),
+        )
+
+    monkeypatch.setattr(
+        "infrastructure.clients.tenant_api.fetch_current_tenant_async",
+        _fake,
+    )
 
 
 @pytest.fixture

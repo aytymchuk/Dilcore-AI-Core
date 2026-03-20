@@ -23,6 +23,7 @@ from api.middleware import setup_exception_handlers
 from api.openapi import setup_openapi
 from infrastructure.auth import verify_token
 from infrastructure.checkpoint.document_checkpointer import close_checkpointer
+from infrastructure.tenant_provider import TenantResolutionMiddleware
 from infrastructure.tracing import configure_tracing, shutdown_tracing
 from shared.config import get_settings
 
@@ -47,6 +48,9 @@ def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
 
+    log_level = getattr(logging, settings.application.log_level.upper(), logging.INFO)
+    logging.getLogger().setLevel(log_level)
+
     app = FastAPI(
         title=settings.application.name,
         description="AI Agent for handling user intents and creating custom blueprints.",
@@ -63,6 +67,8 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    # Last registered runs first on the request: tenant context + platform API before Depends() race.
+    app.add_middleware(TenantResolutionMiddleware)
 
     setup_exception_handlers(app)
 

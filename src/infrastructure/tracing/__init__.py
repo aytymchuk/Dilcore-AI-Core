@@ -20,11 +20,7 @@ os.environ.setdefault("OTEL_PYTHON_DISABLED_INSTRUMENTATIONS", "fastapi,asgi")
 logger = logging.getLogger(__name__)
 
 
-# ruff: noqa: E402
-from container import Container
-
 _tracing_configured = False
-_container: Container | None = None
 
 
 def configure_tracing() -> None:
@@ -34,7 +30,7 @@ def configure_tracing() -> None:
     ``LANGCHAIN_TRACING_V2`` environment variable is set to ``"true"``.
     OpenTelemetry is activated when `AZURE_APPLICATION_INSIGHTS_CONNECTION_STRING` is set.
     """
-    global _tracing_configured, _container
+    global _tracing_configured
     if _tracing_configured:
         return
 
@@ -47,20 +43,22 @@ def configure_tracing() -> None:
         logger.debug("LangSmith tracing is disabled")
 
     # Configure OpenTelemetry SDK and Azure Monitor setup using DI container
-    _container = Container()
-    _container.infrastructure.telemetry()
+    from container import get_app_container
+
+    get_app_container().infrastructure.telemetry()
 
     _tracing_configured = True
 
 
 def shutdown_tracing() -> None:
     """Shutdown tracing and perform cleanup."""
-    global _tracing_configured, _container
-    if not _tracing_configured or _container is None:
+    global _tracing_configured
+    if not _tracing_configured:
         return
 
     # dependency-injector resources can be shutdown via the container
-    _container.shutdown_resources()
-    _container = None
+    from container import get_app_container
+
+    get_app_container().shutdown_resources()
     _tracing_configured = False
     logger.info("Tracing telemetry shutdown complete.")

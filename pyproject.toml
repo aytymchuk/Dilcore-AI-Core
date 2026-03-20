@@ -31,6 +31,8 @@ dependencies = [
     "dependency-injector>=4.41.0",
     "PyJWT>=2.10.1",
     "cryptography>=44.0.0",
+    "tenacity>=9.1.4",
+    "opentelemetry-instrumentation-httpx>=0.60b0",
 ]
 
 [project.optional-dependencies]
@@ -72,6 +74,8 @@ filterwarnings = [
     "ignore:builtin type SwigPyPacked has no __module__ attribute:DeprecationWarning",
     "ignore:builtin type SwigPyObject has no __module__ attribute:DeprecationWarning",
     "ignore:builtin type swigvarlink has no __module__ attribute:DeprecationWarning",
+    # OpenTelemetry / Azure Monitor: deprecated Logger* APIs (re.match — pattern must prefix-match)
+    "ignore:.*Deprecated since version 1\\.39\\.0.*:DeprecationWarning",
 ]
 
 [tool.ruff]

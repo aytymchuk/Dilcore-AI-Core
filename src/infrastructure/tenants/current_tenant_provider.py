@@ -1,0 +1,59 @@
+from __future__ import annotations
+
+import logging
+import time
+
+from application.abstractions.abc_tenant_provider import AbcTenantProvider
+from application.abstractions.abstract_api_client import ApiClientInterface
+from application.domain.tenant import TenantInfo
+from infrastructure.http.request_context import get_access_token
+
+logger = logging.getLogger(__name__)
+
+
+class CurrentTenantProvider(AbcTenantProvider):
+    """Tenant provider that fetches current tenant from API with TTL caching."""
+
+    def __init__(self, api_client: ApiClientInterface) -> None:
+        self._client = api_client
+        self._cached_tenant: TenantInfo | None = None
+        self._cache_expiry: float = 0.0
+        self._cached_token: str | None = None
+
+    def _current_token(self) -> str | None:
+        # Acquire the per-request access token. This token is part of the cache key
+        # so that a token change (e.g., new user or refreshed credentials) invalidates
+        # the cached TenantInfo appropriately.
+        return get_access_token()
+
+    def _load_tenant(self) -> TenantInfo:
+        now = time.time()
+        token = self._current_token()
+        if self._cached_tenant is not None and now < self._cache_expiry and self._cached_token == token:
+            logger.debug(
+                "Tenant resolver cache hit id=%s storageIdentifier=%s",
+                self._cached_tenant.id,
+                self._cached_tenant.storageIdentifier,
+            )
+            return self._cached_tenant
+
+        logger.info("Tenant resolver: fetching current tenant from platform API")
+        tenant = self._client.get_current_tenant()
+        logger.info(
+            "Tenant resolver: resolved id=%s storageIdentifier=%s",
+            tenant.id,
+            tenant.storageIdentifier,
+        )
+        self._cached_tenant = tenant
+        self._cached_token = token
+        # TTL of 1 hour
+        self._cache_expiry = now + 3600
+        return tenant
+
+    def get_tenant_id(self) -> str:
+        tenant = self._load_tenant()
+        return tenant.id
+
+    def get_tenant_info(self) -> TenantInfo:
+        """Return the full TenantInfo for the current tenant."""
+        return self._load_tenant()

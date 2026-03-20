@@ -8,20 +8,10 @@ from langgraph.checkpoint.memory import MemorySaver
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_checkpointer():
-    """Replace the MongoDB checkpointer with an in-memory saver for all unit tests."""
+    """Use in-memory checkpointer for graph compile and BlueprintsService thread APIs."""
     saver = MemorySaver()
     with patch(
-        "infrastructure.checkpoint.document_checkpointer.get_checkpointer",
+        "infrastructure.checkpoint.document_checkpointer.get_checkpointer_for_storage_identifier",
         return_value=saver,
     ):
         yield saver
-
-
-@pytest.fixture(autouse=True)
-def _reset_service_singleton():
-    """Reset the BlueprintsService module-level singleton between tests."""
-    import api.controllers.dependencies as deps
-
-    deps._blueprints_service = None
-    yield
-    deps._blueprints_service = None

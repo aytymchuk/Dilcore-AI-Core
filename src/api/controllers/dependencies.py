@@ -16,27 +16,21 @@ from shared.config import Settings, get_settings
 # ------------------------------------------------------------------
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
-# ------------------------------------------------------------------
-# Singletons — created once, stored at module level
-# ------------------------------------------------------------------
-_blueprints_service: BlueprintsService | None = None
 
+def get_blueprints_service() -> BlueprintsService:
+    """Provide the BlueprintsService singleton from the root DI container."""
+    from container import get_app_container
 
-def get_blueprints_service(settings: SettingsDep) -> BlueprintsService:
-    """Provide the BlueprintsService singleton."""
-    global _blueprints_service  # noqa: PLW0603
-    if _blueprints_service is None:
-        _blueprints_service = BlueprintsService(settings)
-    return _blueprints_service
+    return get_app_container().application.blueprints_service()
 
 
 BlueprintsServiceDep = Annotated[BlueprintsService, Depends(get_blueprints_service)]
 
 
 async def get_tenant_provider() -> AbcTenantProvider:
-    from infrastructure.container import InfrastructureContainer
+    from container import get_app_container
 
-    return InfrastructureContainer.tenant_provider()
+    return get_app_container().infrastructure.tenant_provider()
 
 
 TenantContextDep = Annotated[AbcTenantProvider, Depends(get_tenant_provider)]
