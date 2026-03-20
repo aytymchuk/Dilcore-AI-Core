@@ -9,7 +9,7 @@ from agents.blueprints import graph as graph_module
 
 class DummyProvider:
     def __init__(self):
-        self._tenant = SimpleNamespace(storageIdentifier="tenant123")
+        self._tenant = SimpleNamespace(storage_identifier="tenant123")
 
     def get_tenant_info(self):
         return self._tenant

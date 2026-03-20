@@ -54,10 +54,10 @@ def mock_fetch_current_tenant_async(monkeypatch: pytest.MonkeyPatch) -> None:
         return TenantInfo(
             id="test-tenant",
             name="test-tenant",
-            systemName="test-tenant",
+            system_name="test-tenant",
             description=None,
-            storageIdentifier="test-storage",
-            createdAt=datetime.now(UTC),
+            storage_identifier="test-storage",
+            created_at=datetime.now(UTC),
         )
 
     monkeypatch.setattr(

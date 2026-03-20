@@ -75,9 +75,9 @@ class TenantResolutionMiddleware(BaseHTTPMiddleware):
                     set_resolved_tenant_info(info)
                     _tenant_id_var.set(info.name)
                     logger.debug(
-                        "Middleware resolved tenant id=%s storageIdentifier=%s",
+                        "Middleware resolved tenant id=%s storage_identifier=%s",
                         info.id,
-                        info.storageIdentifier,
+                        info.storage_identifier,
                     )
                 except httpx.TimeoutException as exc:
                     logger.error("Platform tenant API timeout: %s", exc)
@@ -138,10 +138,10 @@ class HeaderTenantProvider(AbcTenantProvider):
         return TenantInfo(
             id=tenant_id,
             name=tenant_id,
-            systemName=tenant_id,
+            system_name=tenant_id,
             description=None,
-            storageIdentifier=storage_identifier,
-            createdAt=datetime.now(UTC),
+            storage_identifier=storage_identifier,
+            created_at=datetime.now(UTC),
         )
 
 

@@ -41,9 +41,9 @@ def _storage_identifier_for_checkpointer(tenant_provider: AbcTenantProvider) -> 
         )
         raise
 
-    sid = tenant.storageIdentifier.strip()
+    sid = tenant.storage_identifier.strip()
     if not sid:
-        raise ValueError("TenantInfo.storageIdentifier is empty; cannot resolve checkpoint storage")
+        raise ValueError("TenantInfo.storage_identifier is empty; cannot resolve checkpoint storage")
     return sid
 
 
@@ -152,7 +152,7 @@ def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBS
 def get_checkpointer_for_tenant_provider(
     tenant_provider: AbcTenantProvider | None,
 ) -> MongoDBSaver | NoOpCheckpointer:
-    """Return the saver for ``tenant_provider``'s ``TenantInfo.storageIdentifier`` (or ``default`` if no provider)."""
+    """Return the saver for ``tenant_provider``'s ``TenantInfo.storage_identifier`` (or ``default`` if no provider)."""
     storage_id = (
         _DEFAULT_CHECKPOINT_STORAGE_ID
         if tenant_provider is None
