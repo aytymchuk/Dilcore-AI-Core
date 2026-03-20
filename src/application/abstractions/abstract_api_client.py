@@ -14,4 +14,4 @@ class ApiClientInterface(ABC):
     @abstractmethod
     def get_current_tenant(self) -> TenantInfo:
         """Return the current tenant information from the Platform API."""
-        raise NotImplementedError
+        ...

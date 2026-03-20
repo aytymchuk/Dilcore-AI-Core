@@ -89,15 +89,13 @@ class TenantResolutionMiddleware(BaseHTTPMiddleware):
                         problem_type="tenant-resolution-timeout",
                     )
                 except httpx.HTTPStatusError as exc:
-                    logger.warning(
-                        "Platform tenant API HTTP %s",
-                        exc.response.status_code,
-                    )
+                    upstream = exc.response.status_code
+                    logger.warning("Platform tenant API HTTP %s", upstream)
                     return _problem_json(
                         request,
-                        status_code=exc.response.status_code,
+                        status_code=502,
                         title="Tenant Resolution Failed",
-                        detail=f"Platform tenant API returned HTTP {exc.response.status_code}.",
+                        detail=f"Platform tenant API returned HTTP {upstream}.",
                         problem_type="tenant-resolution-http-error",
                     )
                 except httpx.RequestError as exc:

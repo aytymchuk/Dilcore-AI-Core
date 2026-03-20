@@ -4,8 +4,17 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import AsyncIterator, Iterator, Sequence
+from typing import Any, NoReturn
 
-from langgraph.checkpoint.base import BaseCheckpointSaver
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.base import (
+    BaseCheckpointSaver,
+    ChannelVersions,
+    Checkpoint,
+    CheckpointMetadata,
+    CheckpointTuple,
+)
 from langgraph.checkpoint.mongodb import MongoDBSaver
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from pymongo import MongoClient
@@ -88,7 +97,7 @@ class NoOpCheckpointer(BaseCheckpointSaver):
     def __init__(self, *args, **kwargs) -> None:
         pass
 
-    def _raise(self) -> None:
+    def _raise(self) -> NoReturn:
         raise AIAgentException(
             problem_type="internal-error",
             title="Internal Server Error",
@@ -96,15 +105,101 @@ class NoOpCheckpointer(BaseCheckpointSaver):
             message="Checkpoint DB unavailable",
         )
 
-    async def alist(self, query: dict):
+    def get_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
         self._raise()
 
-    async def aget_tuple(self, config: dict):
+    def list(
+        self,
+        config: RunnableConfig | None,
+        *,
+        filter: dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
+    ) -> Iterator[CheckpointTuple]:
         self._raise()
 
+    def put(
+        self,
+        config: RunnableConfig,
+        checkpoint: Checkpoint,
+        metadata: CheckpointMetadata,
+        new_versions: ChannelVersions,
+    ) -> RunnableConfig:
+        self._raise()
 
-class NoOpSaverProtocol(NoOpCheckpointer):
-    pass
+    def put_writes(
+        self,
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
+        task_id: str,
+        task_path: str = "",
+    ) -> None:
+        self._raise()
+
+    def delete_thread(self, thread_id: str) -> None:
+        self._raise()
+
+    def delete_for_runs(self, run_ids: Sequence[str]) -> None:
+        self._raise()
+
+    def copy_thread(self, source_thread_id: str, target_thread_id: str) -> None:
+        self._raise()
+
+    def prune(
+        self,
+        thread_ids: Sequence[str],
+        *,
+        strategy: str = "keep_latest",
+    ) -> None:
+        self._raise()
+
+    async def aget_tuple(self, config: RunnableConfig) -> CheckpointTuple | None:
+        self._raise()
+
+    async def alist(
+        self,
+        config: RunnableConfig | None,
+        *,
+        filter: dict[str, Any] | None = None,
+        before: RunnableConfig | None = None,
+        limit: int | None = None,
+    ) -> AsyncIterator[CheckpointTuple]:
+        self._raise()
+
+    async def aput(
+        self,
+        config: RunnableConfig,
+        checkpoint: Checkpoint,
+        metadata: CheckpointMetadata,
+        new_versions: ChannelVersions,
+    ) -> RunnableConfig:
+        self._raise()
+
+    async def aput_writes(
+        self,
+        config: RunnableConfig,
+        writes: Sequence[tuple[str, Any]],
+        task_id: str,
+        task_path: str = "",
+    ) -> None:
+        self._raise()
+
+    async def adelete_thread(self, thread_id: str) -> None:
+        self._raise()
+
+    async def adelete_for_runs(self, run_ids: Sequence[str]) -> None:
+        self._raise()
+
+    async def acopy_thread(self, source_thread_id: str, target_thread_id: str) -> None:
+        self._raise()
+
+    async def aprune(
+        self,
+        thread_ids: Sequence[str],
+        *,
+        strategy: str = "keep_latest",
+    ) -> None:
+        self._raise()
 
 
 def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBSaver | NoOpCheckpointer:
@@ -118,13 +213,14 @@ def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBS
         raise ValueError("storage_identifier must be a non-empty string")
 
     db_name = _checkpoint_database_name(storage_identifier)
-    logger.info(
-        "Acquiring per-storage checkpointer: storage_identifier=%r -> db_name=%s",
+    if db_name in _checkpointer_cache:
+        return _checkpointer_cache[db_name]
+
+    logger.debug(
+        "Creating per-storage checkpointer: storage_identifier=%r -> db_name=%s",
         storage_identifier,
         db_name,
     )
-    if db_name in _checkpointer_cache:
-        return _checkpointer_cache[db_name]
 
     global _mongo_client
     settings = get_settings()
@@ -142,7 +238,10 @@ def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBS
         )
         used_saver = saver
     except Exception:
-        # DB not available -> use no-op checkpointer to keep API alive
+        logger.exception(
+            "MongoDBSaver init failed for db_name=%s; using no-op checkpointer",
+            db_name,
+        )
         used_saver = NoOpCheckpointer()
 
     _checkpointer_cache[db_name] = used_saver

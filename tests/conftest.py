@@ -46,6 +46,8 @@ def mock_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 def mock_fetch_current_tenant_async(monkeypatch: pytest.MonkeyPatch) -> None:
     """Avoid real platform HTTP from :class:`TenantResolutionMiddleware` in tests."""
 
+    # Keep _fake aligned with infrastructure.clients.tenant_api.fetch_current_tenant_async:
+    # (base_url, bearer_token, **kwargs) -> TenantInfo — update here if that signature changes.
     from datetime import datetime
 
     from application.domain.tenant import TenantInfo

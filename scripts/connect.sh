@@ -26,13 +26,14 @@ if [ ! -d "$VENV_DIR" ]; then
   fi
 fi
 
-echo "Activating virtual environment..."
-source "$VENV_DIR/bin/activate"
-
 if [ ! -f "$VENV_DIR/bin/activate" ]; then
-  echo "Failed to activate venv. Aborting."
+  echo "Failed to activate venv (missing $VENV_DIR/bin/activate). Aborting."
   exit 1
 fi
+
+echo "Activating virtual environment..."
+# shellcheck disable=SC1090
+source "$VENV_DIR/bin/activate"
 
 install_dependencies
 

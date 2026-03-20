@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langgraph.graph.state import CompiledStateGraph
+
 from agents.blueprints.runtime import BlueprintsRuntime, build_blueprints_runtime
 from application.abstractions.abc_tenant_provider import AbcTenantProvider
 from shared.config import Settings
@@ -25,7 +27,7 @@ class BlueprintsGraph:
 def create_blueprints_graph(
     settings: Settings,
     tenant_provider: AbcTenantProvider | None = None,
-) -> Any:
+) -> CompiledStateGraph:
     """Build the compiled supervisor graph (optional tenant for checkpointer scope)."""
     return build_blueprints_runtime(settings, tenant_provider).compiled_graph
 

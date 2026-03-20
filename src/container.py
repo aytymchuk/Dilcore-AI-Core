@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import threading
+
 from dependency_injector import containers, providers
 
 from agents.container import AgentsContainer
@@ -28,11 +30,13 @@ class Container(containers.DeclarativeContainer):
 
 
 _app_container: Container | None = None
+_app_container_lock = threading.Lock()
 
 
 def get_app_container() -> Container:
     """Return the process-wide root container (lazy singleton)."""
     global _app_container
-    if _app_container is None:
-        _app_container = Container()
-    return _app_container
+    with _app_container_lock:
+        if _app_container is None:
+            _app_container = Container()
+        return _app_container

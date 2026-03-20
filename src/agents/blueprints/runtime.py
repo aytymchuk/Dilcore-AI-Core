@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from agents.blueprints.nodes import (
     ASK_ROUTE,
@@ -29,8 +30,8 @@ from shared.config import Settings
 class BlueprintsRuntime:
     """Compiled supervisor graph and tenant-aware checkpointer (resolves collection per operation)."""
 
-    compiled_graph: Any
-    checkpointer: Any
+    compiled_graph: CompiledStateGraph
+    checkpointer: BaseCheckpointSaver
 
 
 def build_supervisor_state_graph(settings: Settings) -> StateGraph:

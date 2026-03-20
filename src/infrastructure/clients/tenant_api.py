@@ -23,26 +23,27 @@ async def fetch_current_tenant_async(
     """GET ``/tenants/current`` from the platform API (async; for middleware)."""
     base = base_url.rstrip("/")
     timeout = httpx.Timeout(timeout_seconds, connect=min(10.0, timeout_seconds))
-    headers: dict[str, str] = {"Authorization": f"Bearer {bearer_token}"}
-    if x_tenant and x_tenant.strip():
-        headers["x-tenant"] = x_tenant.strip()
 
-    async def _get() -> TenantInfo:
-        async with httpx.AsyncClient(
-            base_url=base,
-            timeout=timeout,
-            event_hooks={"request": [log_httpx_request_async]},
-        ) as client:
+    async with httpx.AsyncClient(
+        base_url=base,
+        timeout=timeout,
+        event_hooks={"request": [log_httpx_request_async]},
+    ) as client:
+
+        async def _get() -> TenantInfo:
+            headers: dict[str, str] = {"Authorization": f"Bearer {bearer_token}"}
+            if x_tenant and x_tenant.strip():
+                headers["x-tenant"] = x_tenant.strip()
             resp = await client.get(TENANT_CURRENT_ENDPOINT, headers=headers)
             resp.raise_for_status()
             return TenantInfo.model_validate(resp.json())
 
-    return await async_retry_http(
-        _get,
-        max_retries=max_retries,
-        base_delay_seconds=retry_base_delay_seconds,
-        max_delay_seconds=retry_max_delay_seconds,
-    )
+        return await async_retry_http(
+            _get,
+            max_retries=max_retries,
+            base_delay_seconds=retry_base_delay_seconds,
+            max_delay_seconds=retry_max_delay_seconds,
+        )
 
 
 class TenantApiClient(ApiClientInterface):
@@ -73,6 +74,10 @@ class TenantApiClient(ApiClientInterface):
         self._retry_base_delay_seconds = retry_base_delay_seconds
         self._retry_max_delay_seconds = retry_max_delay_seconds
 
+    def close(self) -> None:
+        """Close the underlying HTTP client."""
+        self._client.close()
+
     def _auth_header(self) -> dict[str, str]:
         token = self._token_accessor.get_token()
         if token:
@@ -82,9 +87,9 @@ class TenantApiClient(ApiClientInterface):
     def get_current_tenant(self) -> TenantInfo:
         """Fetch the current tenant information from the API."""
         url = TENANT_CURRENT_ENDPOINT
-        headers = self._auth_header()
 
         def _get() -> TenantInfo:
+            headers = self._auth_header()
             resp = self._client.get(url, headers=headers)
             resp.raise_for_status()
             return TenantInfo.model_validate(resp.json())

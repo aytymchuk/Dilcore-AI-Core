@@ -31,6 +31,10 @@ def _tenant_http_retry_max_delay_seconds(settings: Settings) -> float:
     return settings.api_settings.tenant_http_retry_max_delay_seconds
 
 
+def _tenant_info_cache_ttl_seconds(settings: Settings) -> float:
+    return settings.api_settings.tenant_info_cache_ttl_seconds
+
+
 class InfrastructureContainer(containers.DeclarativeContainer):
     """Container for infrastructure layer dependencies."""
 
@@ -46,6 +50,7 @@ class InfrastructureContainer(containers.DeclarativeContainer):
     tenant_http_max_retries = providers.Callable(_tenant_http_max_retries, shared.settings)
     tenant_http_retry_base_seconds = providers.Callable(_tenant_http_retry_base_seconds, shared.settings)
     tenant_http_retry_max_delay_seconds = providers.Callable(_tenant_http_retry_max_delay_seconds, shared.settings)
+    tenant_info_cache_ttl_seconds = providers.Callable(_tenant_info_cache_ttl_seconds, shared.settings)
 
     tenant_api_client = providers.Singleton(
         TenantApiClient,
@@ -60,6 +65,7 @@ class InfrastructureContainer(containers.DeclarativeContainer):
     current_tenant_provider = providers.Singleton(
         CurrentTenantProvider,
         api_client=tenant_api_client,
+        cache_ttl_seconds=tenant_info_cache_ttl_seconds,
     )
 
     telemetry = providers.Resource(
