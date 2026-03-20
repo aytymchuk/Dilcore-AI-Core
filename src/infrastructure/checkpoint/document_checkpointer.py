@@ -131,7 +131,7 @@ def get_checkpointer_for_storage_identifier(storage_identifier: str) -> MongoDBS
     if _mongo_client is None:
         _mongo_client = MongoClient(settings.mongodb.connection_string)
 
-    serde = JsonPlusSerializer()
+    serde = JsonPlusSerializer(allowed_msgpack_modules=("agents.blueprints.models",))
     try:
         saver = MongoDBSaver(
             _mongo_client,
