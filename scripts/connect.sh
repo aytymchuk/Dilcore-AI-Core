@@ -34,7 +34,7 @@ if [ ! -f "$VENV_DIR/bin/activate" ]; then
   exit 1
 fi
 
-install_dependencies || true
+install_dependencies
 
 echo "Starting the app on http://0.0.0.0:8080..."
 uvicorn src.main:app --reload --port 8080 --host 0.0.0.0
