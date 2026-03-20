@@ -12,11 +12,11 @@ class TenantInfo(BaseModel):
     configuration and storage identifiers.
     """
 
-    id: str = Field(alias="id")
-    name: str = Field(alias="name")
-    systemName: str = Field(alias="systemName")
-    description: str | None = Field(default=None, alias="description")
-    storageIdentifier: str = Field(alias="storageIdentifier")
-    createdAt: datetime = Field(alias="createdAt")
+    id: str
+    name: str
+    system_name: str = Field(alias="systemName")
+    description: str | None = None
+    storage_identifier: str = Field(alias="storageIdentifier")
+    created_at: datetime = Field(alias="createdAt")
 
     model_config = ConfigDict(populate_by_name=True)
