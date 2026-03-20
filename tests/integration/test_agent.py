@@ -31,8 +31,8 @@ def mock_settings():
 
 @pytest.fixture
 def mock_checkpointer():
-    """Mock get_checkpointer to return a MemorySaver for non-Docker tests."""
-    with patch("agents.blueprints.graph.get_checkpointer") as mock_get:
+    """Mock tenant checkpointer to return MemorySaver for non-Docker tests."""
+    with patch("infrastructure.checkpoint.document_checkpointer.get_checkpointer_for_tenant_provider") as mock_get:
         mock_get.return_value = MemorySaver()
         yield mock_get
 
@@ -42,18 +42,19 @@ class TestBlueprintsGraphInitialization:
 
     @pytest.mark.integration
     def test_graph_initializes_with_settings(self, mock_settings, mock_checkpointer) -> None:
-        """BlueprintsGraph should initialize with correct settings."""
+        """BlueprintsGraph should initialize with a runtime built from settings."""
         with (
             patch("infrastructure.llm.client.ChatOpenAI"),
             patch("infrastructure.llm.client.OpenAIEmbeddings"),
             patch("store.vector.faiss_store.FAISS"),
         ):
             from agents.blueprints.graph import BlueprintsGraph
+            from agents.blueprints.runtime import build_blueprints_runtime
 
-            graph = BlueprintsGraph(mock_settings)
+            runtime = build_blueprints_runtime(mock_settings, tenant_provider=None)
+            graph = BlueprintsGraph(runtime)
 
-            assert graph._settings == mock_settings
-            assert graph._llm is not None
+            assert graph._runtime.compiled_graph is not None
 
 
 @pytest.mark.integration
@@ -66,11 +67,12 @@ class TestBlueprintsGraphFlow:
         from langgraph.types import Command
 
         from agents.blueprints.graph import BlueprintsGraph
+        from agents.blueprints.runtime import build_blueprints_runtime
 
         mock_llm = MagicMock()
 
         with (
-            patch("agents.blueprints.graph.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.runtime.create_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.react_agent_node.create_creative_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.generate.nodes.build_plan.create_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm),
@@ -83,7 +85,8 @@ class TestBlueprintsGraphFlow:
                 goto=IDENTIFY_INTENT_ROUTE, update={"current_phase": IDENTIFY_INTENT_ROUTE}
             )
 
-            graph = BlueprintsGraph(mock_settings)
+            runtime = build_blueprints_runtime(mock_settings, tenant_provider=None)
+            graph = BlueprintsGraph(runtime)
             state = {"messages": [HumanMessage(content="Hello")]}
             config = {"configurable": {"thread_id": "test-thread-id-1"}}
 
@@ -99,11 +102,12 @@ class TestBlueprintsGraphFlow:
         from langgraph.types import Command
 
         from agents.blueprints.graph import BlueprintsGraph
+        from agents.blueprints.runtime import build_blueprints_runtime
 
         mock_llm = MagicMock()
 
         with (
-            patch("agents.blueprints.graph.create_llm", return_value=mock_llm),
+            patch("agents.blueprints.runtime.create_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.react_agent_node.create_creative_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.generate.nodes.build_plan.create_llm", return_value=mock_llm),
             patch("agents.blueprints.sub_agents.generate.nodes.handle_response.create_llm", return_value=mock_llm),
@@ -116,7 +120,8 @@ class TestBlueprintsGraphFlow:
             mock_sup_call.return_value = Command(goto=ASK_ROUTE, update={"current_phase": ASK_ROUTE})
             mock_ask_call.return_value = {"messages": [AIMessage(content="I am the ask agent.")]}
 
-            graph = BlueprintsGraph(mock_settings)
+            runtime = build_blueprints_runtime(mock_settings, tenant_provider=None)
+            graph = BlueprintsGraph(runtime)
             state = {"messages": [HumanMessage(content="What are blueprints?")]}
             config = {"configurable": {"thread_id": "test-thread-id-2"}}
 

@@ -3,7 +3,7 @@
 from functools import lru_cache
 
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict, Field, SecretStr, computed_field
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, SecretStr, computed_field
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -143,6 +143,49 @@ class LangSmithSettings(BaseModel):
     project: str = Field(default="Dilcore AI Agent", alias="Project")
 
 
+class ApiSettings(BaseModel):
+    """API-related settings loaded from Azure App Configuration."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    base_url: HttpUrl = Field(default="http://localhost:8080", alias="BaseUrl", validate_default=True)
+    tenant_http_timeout_seconds: float = Field(
+        default=30.0,
+        alias="TenantHttpTimeoutSeconds",
+        description="HTTP read timeout for platform tenant API (get current tenant)",
+        ge=1.0,
+        le=120.0,
+    )
+    tenant_http_max_retries: int = Field(
+        default=3,
+        alias="TenantHttpMaxRetries",
+        description="Retry count for transient tenant API errors (timeouts, connection issues, 5xx, 429)",
+        ge=0,
+        le=10,
+    )
+    tenant_http_retry_base_seconds: float = Field(
+        default=0.25,
+        alias="TenantHttpRetryBaseSeconds",
+        description="Initial backoff delay for tenant API retries (exponential)",
+        ge=0.05,
+        le=10.0,
+    )
+    tenant_http_retry_max_delay_seconds: float = Field(
+        default=8.0,
+        alias="TenantHttpRetryMaxDelaySeconds",
+        description="Backoff cap between tenant API retries",
+        ge=0.5,
+        le=60.0,
+    )
+    tenant_info_cache_ttl_seconds: float = Field(
+        default=3600.0,
+        alias="TenantInfoCacheTtlSeconds",
+        description="TTL for in-process tenant info cache (CurrentTenantProvider)",
+        ge=60.0,
+        le=86400.0,
+    )
+
+
 class Settings(BaseSettings):
     """Application settings loaded from environment variables or Azure App Configuration.
 
@@ -188,6 +231,9 @@ class Settings(BaseSettings):
 
     # LangSmith (maps to AIAgent.LangSmithSettings)
     langsmith: LangSmithSettings = Field(default_factory=LangSmithSettings, alias="LangSmithSettings")
+
+    # API Settings (maps to AIAgent.ApiSettings loaded from Azure App Configuration)
+    api_settings: ApiSettings = Field(default_factory=ApiSettings, alias="ApiSettings")
 
     @classmethod
     def settings_customise_sources(

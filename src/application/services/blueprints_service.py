@@ -15,6 +15,7 @@ from langgraph.types import Command
 
 from agents.blueprints.graph import BlueprintsGraph
 from agents.blueprints.models import HumanResponse
+from agents.blueprints.runtime import BlueprintsRuntime
 from api.schemas.response import (
     ActionRequestDto,
     HumanInterruptConfigDto,
@@ -24,8 +25,6 @@ from api.schemas.response import (
     ThreadResponseDto,
 )
 from api.schemas.thread import ResumeInputDto, ThreadMessageInputDto
-from infrastructure.checkpoint.document_checkpointer import get_checkpointer
-from shared.config import Settings
 from shared.exceptions import ResourceNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -119,10 +118,9 @@ class BlueprintsService:
         - Holds a pre-compiled LangGraph instance.
     """
 
-    def __init__(self, settings: Settings) -> None:
-        self._settings = settings
-        self._graph = BlueprintsGraph(settings)
-        self._checkpointer = get_checkpointer()
+    def __init__(self, runtime: BlueprintsRuntime) -> None:
+        self._graph = BlueprintsGraph(runtime)
+        self._checkpointer = runtime.checkpointer
 
     async def start(self, request: ThreadMessageInputDto) -> ThreadResponseDto | InterruptResponseDto:
         """Start a new thread with an initial message."""

@@ -23,6 +23,10 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
     connection_string = settings.azure_telemetry.application_insights_connection_string
 
     if connection_string:
+        # Before configure_azure_monitor: first export can run during setup and would spam INFO.
+        logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+        logging.getLogger("azure.monitor.opentelemetry.exporter").setLevel(logging.WARNING)
+
         # Configure Azure Monitor Distro
         tenant_processor = TenantSpanProcessor(tenant_provider, user_provider)
         name_fixer = DependencyNameFixer()
@@ -36,9 +40,13 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
         )
 
         def httpx_request_hook(span, request):
-            """Hook to enrich httpx client span names with the target host."""
+            """Hook to enrich httpx client span names with method and host."""
             if span.is_recording():
                 span.update_name(f"{request.method} {request.url.host}")
+
+        async def httpx_async_request_hook(span, request):
+            """Async client hook (must be a coroutine for AsyncClient instrumentation)."""
+            httpx_request_hook(span, request)
 
         def urllib3_request_hook(span, method, url, _kwargs):
             """Hook to enrich urllib3 client span names with the target host."""
@@ -69,14 +77,24 @@ def setup_telemetry(tenant_provider: AbcTenantProvider, user_provider: AbcUserId
                 # Suppress noisy ASGI and FastAPI low-level send/receive internal spans
                 "fastapi": {"exclude_spans": ["receive", "send"]},
                 "asgi": {"exclude_spans": ["receive", "send"]},
-                "httpx": {"request_hook": httpx_request_hook},
+                # httpx is not in Azure distro's supported instrumentor list; instrument below.
                 "urllib3": {"request_hook": urllib3_request_hook},
                 "urllib": {"request_hook": urllib_request_hook},
             },
         )
 
-        # Silence the very noisy Azure HTTP logging policy that prints request headers every time telemetry is exported
-        logging.getLogger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.WARNING)
+        try:
+            from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+            HTTPXClientInstrumentor().instrument(
+                request_hook=httpx_request_hook,
+                async_request_hook=httpx_async_request_hook,
+            )
+            logger.debug("OpenTelemetry HTTPX client instrumentation enabled (dependency spans).")
+        except Exception:
+            logger.exception(
+                "OpenTelemetry httpx instrumentation failed; outbound HTTP may be missing dependency traces."
+            )
 
         # Azure Monitor's configuration automatically attaches an OpenTelemetry LoggingHandler
         # to the root logger. We must find it and attach our custom filters to it so that
