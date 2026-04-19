@@ -26,6 +26,7 @@ def create_llm(settings: Settings, *, streaming: bool = False) -> ChatOpenAI:
         base_url=settings.openrouter.base_url,
         model=settings.openrouter.model,
         temperature=0,
+        max_tokens=settings.openrouter.max_tokens,
         streaming=streaming,
     )
 
@@ -45,7 +46,7 @@ def create_creative_llm(settings: Settings, *, streaming: bool = False) -> ChatO
         base_url=settings.openrouter.base_url,
         model=settings.openrouter.model,
         temperature=0.4,  # Increased for fluid analogies and completeness
-        max_tokens=4000,  # Ensure output isn't aggressively truncated
+        max_tokens=settings.openrouter.max_tokens,
         streaming=streaming,
     )
 

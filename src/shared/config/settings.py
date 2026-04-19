@@ -34,6 +34,7 @@ class OpenRouterSettings(BaseModel):
     api_key: SecretStr = Field(alias="ApiKey")
     base_url: str = Field(default="https://openrouter.ai/api/v1", alias="BaseUrl")
     model: str = Field(default="openai/gpt-oss-20b:free", alias="Model")
+    max_tokens: int = Field(default=4000, alias="MaxTokens")
 
 
 class Auth0Settings(BaseModel):

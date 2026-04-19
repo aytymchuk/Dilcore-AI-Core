@@ -36,7 +36,7 @@ class BlueprintsRuntime:
 
 def build_supervisor_state_graph(settings: Settings) -> StateGraph:
     """Build the StateGraph (nodes and edges) before compile."""
-    llm = create_llm(settings, streaming=False)
+    llm = create_llm(settings, streaming=True)
     builder = StateGraph(BlueprintsState)
 
     builder.add_node("supervisor", SupervisorNode(llm))

@@ -6,8 +6,10 @@ Controllers should call this service rather than invoking the graph directly.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from collections.abc import AsyncIterator
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -110,6 +112,98 @@ def _extract_interrupts(state: Any) -> list[InterruptDto]:
     return dtos
 
 
+def _sse_event(payload: dict[str, Any]) -> dict[str, str]:
+    """Shape a single SSE payload for :class:`sse_starlette.sse.EventSourceResponse`."""
+    return {"data": json.dumps(payload, default=str)}
+
+
+def _parse_langgraph_stream_chunk(chunk: Any) -> tuple[str, Any] | None:
+    """Normalize LangGraph stream items (tuple or v2 dict) to ``(mode, data)``."""
+    if isinstance(chunk, dict) and "type" in chunk:
+        return str(chunk["type"]), chunk["data"]
+    if isinstance(chunk, tuple) and len(chunk) == 2:
+        return str(chunk[0]), chunk[1]
+    return None
+
+
+def _text_token_delta_from_message_chunk(msg_chunk: Any) -> str | None:
+    """Extract user-visible text deltas from a streamed message chunk (not reasoning)."""
+    content = getattr(msg_chunk, "content", None)
+    if content is None:
+        return None
+    if isinstance(content, str) and content:
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text", "")))
+        joined = "".join(parts)
+        return joined if joined else None
+    return None
+
+
+def _reasoning_delta_from_message_chunk(msg_chunk: Any) -> str | None:
+    """Extract reasoning / extended-thinking deltas when the model exposes them."""
+    rc = getattr(msg_chunk, "reasoning_content", None)
+    if rc:
+        return rc if isinstance(rc, str) else str(rc)
+    additional = getattr(msg_chunk, "additional_kwargs", None) or {}
+    nested = additional.get("reasoning_content")
+    if nested:
+        return nested if isinstance(nested, str) else str(nested)
+    content = getattr(msg_chunk, "content", None)
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") not in ("thinking", "reasoning"):
+                continue
+            piece = block.get("thinking") or block.get("reasoning") or block.get("text")
+            if piece:
+                parts.append(str(piece))
+        if parts:
+            return "".join(parts)
+    return None
+
+
+def _agent_type_from_message_chunk(msg_chunk: Any) -> str | None:
+    additional = getattr(msg_chunk, "additional_kwargs", None) or {}
+    at = additional.get("agent_type")
+    return str(at) if at is not None else None
+
+
+# LangGraph node name -> (user-facing status message, coarse phase for UI grouping)
+_NODE_STATUS_MAP: dict[str, tuple[str, str]] = {
+    "supervisor": ("Analyzing your request...", "routing"),
+    "ask": ("Answering your question...", "ask"),
+    "design": ("Working on the design...", "design"),
+    "generate": ("Preparing generation...", "generate"),
+    "identify_intent": ("Clarifying your request...", "identify_intent"),
+    "build_plan": ("Building generation plan...", "generate"),
+    "present_plan": ("Presenting plan for review...", "generate"),
+    "collect_response": ("Awaiting plan confirmation...", "generate"),
+    "handle_response": ("Processing your feedback...", "generate"),
+    "write_success": ("Executing generation plan...", "generate"),
+    "ask_agent": ("Answering your question...", "ask"),
+    "design_agent": ("Working on the design...", "design"),
+    "update_design_context": ("Updating design context...", "design"),
+}
+
+# Nodes we expect to appear in stream updates (supervisor graph + inner nodes); used by tests.
+EXPECTED_STREAM_STATUS_NODES: frozenset[str] = frozenset(_NODE_STATUS_MAP.keys())
+
+
+def _stream_run_config(thread_id: str) -> dict[str, Any]:
+    return {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": 100,
+    }
+
+
 class BlueprintsService:
     """Service that orchestrates the Blueprints agent graph.
 
@@ -200,6 +294,164 @@ class BlueprintsService:
             )
 
         return ThreadResponseDto(id=thread_id, messages=messages)
+
+    async def start_stream(
+        self,
+        request: ThreadMessageInputDto,
+    ) -> AsyncIterator[dict[str, str]]:
+        """Stream graph execution for a new thread over SSE (see JSON ``category`` field)."""
+        thread_id = str(uuid.uuid4())
+        config = _stream_run_config(thread_id)
+        state_input: dict[str, Any] = {"messages": [HumanMessage(content=request.message)]}
+        try:
+            async for event in self._stream_graph_execution(state_input, config):
+                yield event
+            async for event in self._stream_final_payload(thread_id, config):
+                yield event
+        except Exception as e:  # noqa: BLE001 — surfaced to client as SSE error
+            logger.exception("Blueprints start_stream failed for thread %s", thread_id)
+            yield _sse_event({"category": "error", "detail": str(e)})
+
+    async def continue_stream(
+        self,
+        thread_id: str,
+        request: ThreadMessageInputDto,
+    ) -> AsyncIterator[dict[str, str]]:
+        """Stream graph execution when continuing a thread (supervisor re-entry)."""
+        try:
+            await self._assert_thread_exists(thread_id)
+        except ResourceNotFoundError as e:
+            yield _sse_event({"category": "error", "detail": str(e)})
+            return
+
+        config = _stream_run_config(thread_id)
+        state = await self._graph.aget_state(config)
+        interrupts = _extract_interrupts(state)
+        if interrupts:
+            yield _sse_event(
+                {
+                    "category": "interrupt",
+                    "id": thread_id,
+                    "interrupts": [i.model_dump(mode="json") for i in interrupts],
+                    "messages": _format_messages(state.values) if state else [],
+                }
+            )
+            return
+
+        state_input: dict[str, Any] = {"messages": [HumanMessage(content=request.message)]}
+        try:
+            async for event in self._stream_graph_execution(state_input, config):
+                yield event
+            async for event in self._stream_final_payload(thread_id, config):
+                yield event
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Blueprints continue_stream failed for thread %s", thread_id)
+            yield _sse_event({"category": "error", "detail": str(e)})
+
+    async def resume_stream(
+        self,
+        thread_id: str,
+        request: ResumeInputDto,
+    ) -> AsyncIterator[dict[str, str]]:
+        """Stream graph execution when resuming from a human-in-the-loop interrupt."""
+        try:
+            await self._assert_thread_exists(thread_id)
+        except ResourceNotFoundError as e:
+            yield _sse_event({"category": "error", "detail": str(e)})
+            return
+
+        config = _stream_run_config(thread_id)
+        state = await self._graph.aget_state(config)
+        if not state or not state.next:
+            yield _sse_event(
+                {
+                    "category": "error",
+                    "detail": f"Thread {thread_id} has no pending interrupt to resume",
+                }
+            )
+            return
+
+        resume_value = _build_human_response(request)
+        command_input = Command(resume=resume_value)
+        try:
+            async for event in self._stream_graph_execution(command_input, config):
+                yield event
+            async for event in self._stream_final_payload(thread_id, config):
+                yield event
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Blueprints resume_stream failed for thread %s", thread_id)
+            yield _sse_event({"category": "error", "detail": str(e)})
+
+    async def _stream_graph_execution(
+        self,
+        graph_input: Any,
+        config: dict[str, Any],
+    ) -> AsyncIterator[dict[str, str]]:
+        """Map LangGraph stream chunks to semantic SSE JSON events (``category`` field)."""
+        async for chunk in self._graph.astream(
+            graph_input,
+            config=config,
+            stream_mode=["messages", "updates"],
+        ):
+            parsed = _parse_langgraph_stream_chunk(chunk)
+            if not parsed:
+                continue
+            mode, data = parsed
+            if mode == "messages":
+                msg_chunk, _metadata = data
+                reasoning = _reasoning_delta_from_message_chunk(msg_chunk)
+                if reasoning:
+                    yield _sse_event({"category": "thinking", "content": reasoning})
+                text = _text_token_delta_from_message_chunk(msg_chunk)
+                if text:
+                    yield _sse_event(
+                        {
+                            "category": "delta",
+                            "content": text,
+                            "agent_type": _agent_type_from_message_chunk(msg_chunk),
+                        }
+                    )
+            elif mode == "updates" and isinstance(data, dict):
+                for node_name in data:
+                    mapped = _NODE_STATUS_MAP.get(node_name)
+                    if mapped is not None:
+                        message, phase = mapped
+                        yield _sse_event(
+                            {
+                                "category": "status",
+                                "message": message,
+                                "phase": phase,
+                            }
+                        )
+
+    async def _stream_final_payload(
+        self,
+        thread_id: str,
+        config: dict[str, Any],
+    ) -> AsyncIterator[dict[str, str]]:
+        """Emit terminal ``interrupt`` or ``data`` event from checkpoint state."""
+        state = await self._graph.aget_state(config)
+        values = state.values if state else {}
+        interrupts = _extract_interrupts(state)
+        messages = _format_messages(values if isinstance(values, dict) else {})
+
+        if interrupts:
+            yield _sse_event(
+                {
+                    "category": "interrupt",
+                    "id": thread_id,
+                    "interrupts": [i.model_dump(mode="json") for i in interrupts],
+                    "messages": messages,
+                }
+            )
+        else:
+            yield _sse_event(
+                {
+                    "category": "data",
+                    "thread_id": thread_id,
+                    "messages": messages,
+                }
+            )
 
     async def get_threads(self) -> list[ThreadItemDto]:
         """List all tracked threads."""

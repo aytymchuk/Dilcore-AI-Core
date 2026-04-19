@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Any
 
 from langgraph.graph.state import CompiledStateGraph
@@ -22,6 +23,21 @@ class BlueprintsGraph:
 
     async def aget_state(self, config: dict) -> Any:
         return await self._runtime.compiled_graph.aget_state(config)
+
+    def astream(
+        self,
+        state: dict | Any,
+        config: dict | None = None,
+        *,
+        stream_mode: list[str] | None = None,
+        version: str | None = None,
+    ) -> AsyncIterator[Any]:
+        """Stream graph execution (tokens, updates, etc.) from the compiled graph."""
+        modes = stream_mode if stream_mode is not None else ["messages", "updates"]
+        kwargs: dict[str, Any] = {}
+        if version is not None:
+            kwargs["version"] = version
+        return self._runtime.compiled_graph.astream(state, config=config, stream_mode=modes, **kwargs)
 
 
 def create_blueprints_graph(

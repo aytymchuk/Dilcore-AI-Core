@@ -7,11 +7,38 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from scalar_fastapi import get_scalar_api_reference
 
+from api.schemas.sse import blueprint_sse_event_json_schema
 from shared.config import get_settings
 
 logger = logging.getLogger(__name__)
 
 _SCALAR_CDN = "https://cdn.jsdelivr.net/npm/@scalar/api-reference"
+
+
+def _rewrite_json_schema_defs_refs(obj: Any) -> Any:
+    """Turn Pydantic ``#/$defs/X`` references into ``#/components/schemas/X``."""
+    if isinstance(obj, dict):
+        return {
+            k: (
+                v.replace("#/$defs/", "#/components/schemas/")
+                if k == "$ref" and isinstance(v, str)
+                else _rewrite_json_schema_defs_refs(v)
+            )
+            for k, v in obj.items()
+        }
+    if isinstance(obj, list):
+        return [_rewrite_json_schema_defs_refs(i) for i in obj]
+    return obj
+
+
+def _register_blueprint_sse_event_schemas(openapi_schema: dict[str, Any]) -> None:
+    """Merge Blueprints SSE ``data:`` JSON union into ``components.schemas``."""
+    raw = blueprint_sse_event_json_schema()
+    defs = raw.pop("$defs", {})
+    components = openapi_schema.setdefault("components", {}).setdefault("schemas", {})
+    for name, subschema in defs.items():
+        components[name] = _rewrite_json_schema_defs_refs(subschema)
+    components["BlueprintSseEvent"] = _rewrite_json_schema_defs_refs(raw)
 
 
 def custom_openapi(app: FastAPI) -> dict[str, Any]:
@@ -38,6 +65,8 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
             "instance": {"type": "string", "example": "/api/v1/blueprints/start"},
         },
     }
+
+    _register_blueprint_sse_event_schemas(openapi_schema)
 
     app.openapi_schema = openapi_schema
     return app.openapi_schema

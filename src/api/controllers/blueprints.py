@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, status
+from sse_starlette.sse import EventSourceResponse
 
 from api.controllers.dependencies import BlueprintsServiceDep
+from api.openapi_streaming import blueprints_sse_stream_success_response
 from api.schemas.errors import ProblemDetails
 from api.schemas.response import InterruptResponseDto, ThreadItemDto, ThreadResponseDto
 from api.schemas.thread import ResumeInputDto, ThreadMessageInputDto
@@ -40,6 +42,33 @@ async def start_thread(
 
 
 @router.post(
+    "/start-stream",
+    status_code=status.HTTP_201_CREATED,
+    summary="Start a new thread (SSE stream)",
+    description=(
+        "Starts a new thread and streams LangGraph execution as Server-Sent Events. "
+        "Each event's ``data`` is JSON with a ``category`` field: "
+        "``status`` (high-level step), ``thinking`` (model reasoning when available), "
+        "``delta`` (streamed assistant text), ``data`` (final thread state), "
+        "``interrupt`` (human-in-the-loop), or ``error``. "
+        "See ``components.schemas.BlueprintSseEvent`` for the full payload union."
+    ),
+    responses={
+        **blueprints_sse_stream_success_response(status_code=status.HTTP_201_CREATED),
+        422: {"description": "Validation error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
+    },
+)
+async def start_thread_stream(
+    request: ThreadMessageInputDto,
+    service: BlueprintsServiceDep,
+) -> EventSourceResponse:
+    """Start a new thread and stream tokens, reasoning (if supported), and graph progress."""
+    logger.info("Received thread start-stream request")
+    return EventSourceResponse(service.start_stream(request), status_code=status.HTTP_201_CREATED)
+
+
+@router.post(
     "/{thread_id}/continue",
     response_model=ThreadResponseDto | InterruptResponseDto,
     status_code=status.HTTP_200_OK,
@@ -67,6 +96,32 @@ async def continue_thread(
 
 
 @router.post(
+    "/{thread_id}/continue-stream",
+    status_code=status.HTTP_200_OK,
+    summary="Continue a thread (SSE stream)",
+    description=(
+        "Same as ``/continue`` but streams execution via SSE. "
+        "If the thread is waiting on an interrupt, emits a single event with ``category: interrupt``. "
+        "Payload shapes: ``components.schemas.BlueprintSseEvent``."
+    ),
+    responses={
+        **blueprints_sse_stream_success_response(status_code=status.HTTP_200_OK),
+        404: {"description": "Thread not found", "model": ProblemDetails},
+        422: {"description": "Validation error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
+    },
+)
+async def continue_thread_stream(
+    thread_id: str,
+    request: ThreadMessageInputDto,
+    service: BlueprintsServiceDep,
+) -> EventSourceResponse:
+    """Continue a thread with SSE streaming."""
+    logger.info("Received continue-stream request for thread %s", thread_id)
+    return EventSourceResponse(service.continue_stream(thread_id, request))
+
+
+@router.post(
     "/{thread_id}/resume",
     response_model=ThreadResponseDto | InterruptResponseDto,
     status_code=status.HTTP_200_OK,
@@ -91,6 +146,32 @@ async def resume_thread(
     """Resume a thread from a graph interrupt with the user's response."""
     logger.info("Received resume request for thread %s", thread_id)
     return await service.resume(thread_id, request)
+
+
+@router.post(
+    "/{thread_id}/resume-stream",
+    status_code=status.HTTP_200_OK,
+    summary="Resume an interrupted thread (SSE stream)",
+    description=(
+        "Same as ``/resume`` but streams execution via SSE "
+        "(``category``: ``status``, ``thinking``, ``delta``, ``data``, ``interrupt``, ``error``). "
+        "Payload shapes: ``components.schemas.BlueprintSseEvent``."
+    ),
+    responses={
+        **blueprints_sse_stream_success_response(status_code=status.HTTP_200_OK),
+        404: {"description": "Thread not found or no pending interrupt", "model": ProblemDetails},
+        422: {"description": "Validation error", "model": ProblemDetails},
+        500: {"description": "Internal error", "model": ProblemDetails},
+    },
+)
+async def resume_thread_stream(
+    thread_id: str,
+    request: ResumeInputDto,
+    service: BlueprintsServiceDep,
+) -> EventSourceResponse:
+    """Resume from interrupt with SSE streaming."""
+    logger.info("Received resume-stream request for thread %s", thread_id)
+    return EventSourceResponse(service.resume_stream(thread_id, request))
 
 
 @router.get(

@@ -10,10 +10,16 @@ set -euo pipefail
 
 install_dependencies() {
   echo "Installing/upgrading Python dependencies..."
-  # Upgrade pip first
+  # uv-managed venvs often have no pip script or pip module; use uv when available.
+  if command -v uv >/dev/null 2>&1; then
+    uv pip install --python "$VENV_DIR/bin/python" --upgrade -e "$PROJECT_ROOT"
+    return
+  fi
+  if ! "$VENV_DIR/bin/python" -m pip --version >/dev/null 2>&1; then
+    "$VENV_DIR/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+  fi
   "$VENV_DIR/bin/python" -m pip install --upgrade pip >/dev/null 2>&1 || true
-  # Install dependencies from pyproject.toml in editable mode for development
-  "$VENV_DIR/bin/pip" install --upgrade -e "$PROJECT_ROOT"
+  "$VENV_DIR/bin/python" -m pip install --upgrade -e "$PROJECT_ROOT"
 }
 
 if [ ! -d "$VENV_DIR" ]; then

@@ -33,7 +33,7 @@ class ReActAgentNode:
         tools: list,
         agent_type: str,
     ) -> Self:
-        llm = create_creative_llm(settings, streaming=False)
+        llm = create_creative_llm(settings, streaming=True)
         agent = create_agent(
             model=llm,
             tools=tools,
