@@ -5,7 +5,9 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import HTMLResponse
 from scalar_fastapi import get_scalar_api_reference
+from scalar_fastapi.scalar_fastapi import DocumentDownloadType
 
 from api.schemas.sse import blueprint_sse_event_json_schema
 from shared.config import get_settings
@@ -112,9 +114,37 @@ def setup_openapi(app: FastAPI) -> None:
                 },
             }
 
-        return get_scalar_api_reference(
+        scalar_result = get_scalar_api_reference(
             openapi_url=spec_url,
             title=f"{settings.application.name} - API Reference",
             scalar_js_url=_SCALAR_CDN,
+            document_download_type=DocumentDownloadType.BOTH,
             authentication=authentication or {},
         )
+
+        # scalar-fastapi normally returns an HTMLResponse, but tests may monkeypatch it to a str.
+        response = HTMLResponse(scalar_result) if isinstance(scalar_result, str) else scalar_result
+
+        if spec_url and getattr(response, "body", None):
+            marker = '<div id="app"></div>'
+            body = bytes(response.body)
+            response.body = body.replace(
+                marker.encode(),
+                (
+                    (
+                        marker
+                        + f"""
+        <div style="position:fixed;right:12px;top:12px;z-index:9999;font-family:ui-sans-serif,system-ui,-apple-system;">
+            <a href="{spec_url}" target="_blank" rel="noopener noreferrer"
+               style="display:inline-block;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,0.65);color:#fff;text-decoration:none;font-size:12px;backdrop-filter:saturate(180%) blur(8px);">
+                OpenAPI spec
+            </a>
+        </div>
+"""
+                    ).encode()
+                ),
+            )
+            # Keep Content-Length consistent with our mutated body (uvicorn enforces this).
+            response.headers["content-length"] = str(len(response.body))
+
+        return response

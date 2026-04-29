@@ -6,6 +6,8 @@ the planner LLM has full schema knowledge when producing the plan.
 
 import asyncio
 import logging
+from collections.abc import Awaitable
+from typing import cast
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -19,6 +21,7 @@ from agents.blueprints.sub_agents.generate.tools import (
 )
 from infrastructure.llm import create_llm
 from shared.config import Settings
+from shared.reasoning import add_next_steps, add_step, add_summary, set_header, with_step
 from shared.utils import format_conversation
 
 logger = logging.getLogger(__name__)
@@ -47,9 +50,13 @@ class BuildPlanNode:
         return "\n\n---\n\n".join(sections)
 
     async def __call__(self, state: BlueprintsState) -> dict:
+        set_header("Preparing a plan for your blueprint")
         design_context = state.get("design_context", "")
 
-        reference = await self._load_reference_context()
+        reference = await with_step(
+            "Checking the Blueprints guidance needed for the plan",
+            self._load_reference_context,
+        )
         system_prompt = GENERATE_PLANNER_PROMPT
         if reference:
             system_prompt += f"\n\nAPI Reference Material:\n{reference}"
@@ -61,18 +68,40 @@ class BuildPlanNode:
             human_content = f"Design context:\n{design_context}\n\n---\n\n{conversation}"
 
         try:
-            plan: GenerationPlan = await self._structured_llm.ainvoke(
-                [
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=human_content),
-                ]
+            plan: GenerationPlan = await with_step(
+                "Drafting the plan",
+                lambda: cast(
+                    Awaitable[GenerationPlan],
+                    self._structured_llm.ainvoke(
+                        [
+                            SystemMessage(content=system_prompt),
+                            HumanMessage(content=human_content),
+                        ]
+                    ),
+                ),
             )
             actions = plan.actions
+            add_summary(
+                f"The plan has {len(actions)} step(s) ready for you to review.",
+                status="completed",
+            )
+            add_next_steps(
+                ["You'll see the plan next—approve it or suggest changes."],
+                status="completed",
+            )
         except Exception:
             logger.exception("Failed to parse generation plan via structured output.")
+            add_step(
+                "I couldn't finish a detailed plan—I'll leave a simple retry note instead.",
+                status="failed",
+            )
             actions = [
                 PlanAction(action="raw_plan", target="all", description="Plan generation failed — please retry.")
             ]
+            add_summary(
+                "Please try again shortly—we couldn't draft the full plan this time.",
+                status="completed",
+            )
 
         return {
             "generation_plan": actions,

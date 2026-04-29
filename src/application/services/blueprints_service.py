@@ -28,6 +28,17 @@ from api.schemas.response import (
 )
 from api.schemas.thread import ResumeInputDto, ThreadMessageInputDto
 from shared.exceptions import ResourceNotFoundError
+from shared.reasoning import (
+    ReasoningBuffer,
+    SupervisorStructuredCaptureState,
+    consume_supervisor_structured_delta,
+    extract_agent_type,
+    extract_reasoning_delta,
+    extract_text_delta,
+    reset_reasoning_buffer,
+    serialize_reasoning_envelopes,
+    set_reasoning_buffer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +70,7 @@ def _format_messages(result: dict) -> list[dict]:
         if msg_type and content is not None:
             message_dicts.append(
                 {
+                    "id": f"m-{len(message_dicts)}",
                     "type": msg_type,
                     "content": content,
                     "agent_type": agent_type,
@@ -124,56 +136,6 @@ def _parse_langgraph_stream_chunk(chunk: Any) -> tuple[str, Any] | None:
     if isinstance(chunk, tuple) and len(chunk) == 2:
         return str(chunk[0]), chunk[1]
     return None
-
-
-def _text_token_delta_from_message_chunk(msg_chunk: Any) -> str | None:
-    """Extract user-visible text deltas from a streamed message chunk (not reasoning)."""
-    content = getattr(msg_chunk, "content", None)
-    if content is None:
-        return None
-    if isinstance(content, str) and content:
-        return content
-    if isinstance(content, list):
-        parts: list[str] = []
-        for block in content:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict) and block.get("type") == "text":
-                parts.append(str(block.get("text", "")))
-        joined = "".join(parts)
-        return joined if joined else None
-    return None
-
-
-def _reasoning_delta_from_message_chunk(msg_chunk: Any) -> str | None:
-    """Extract reasoning / extended-thinking deltas when the model exposes them."""
-    rc = getattr(msg_chunk, "reasoning_content", None)
-    if rc:
-        return rc if isinstance(rc, str) else str(rc)
-    additional = getattr(msg_chunk, "additional_kwargs", None) or {}
-    nested = additional.get("reasoning_content")
-    if nested:
-        return nested if isinstance(nested, str) else str(nested)
-    content = getattr(msg_chunk, "content", None)
-    if isinstance(content, list):
-        parts: list[str] = []
-        for block in content:
-            if not isinstance(block, dict):
-                continue
-            if block.get("type") not in ("thinking", "reasoning"):
-                continue
-            piece = block.get("thinking") or block.get("reasoning") or block.get("text")
-            if piece:
-                parts.append(str(piece))
-        if parts:
-            return "".join(parts)
-    return None
-
-
-def _agent_type_from_message_chunk(msg_chunk: Any) -> str | None:
-    additional = getattr(msg_chunk, "additional_kwargs", None) or {}
-    at = additional.get("agent_type")
-    return str(at) if at is not None else None
 
 
 # LangGraph node name -> (user-facing status message, coarse phase for UI grouping)
@@ -266,10 +228,23 @@ class BlueprintsService:
             raise ResourceNotFoundError(f"Thread {thread_id} has no pending interrupt to resume")
 
         resume_value = _build_human_response(request)
-        result = await self._graph.ainvoke(
-            Command(resume=resume_value),
-            config=config,
+        # Ensure fluent reasoning API is available during non-stream runs too.
+        existing_messages = _format_messages(state.values) if state and isinstance(state.values, dict) else []
+        base_count = len(existing_messages)
+        existing_reasoning = (
+            (state.values or {}).get("reasoning", []) if state and isinstance(state.values, dict) else []
         )
+        max_seq = max((x.get("sequence", 0) for x in existing_reasoning if isinstance(x, dict)), default=0)
+        buffer = ReasoningBuffer(thread_id=thread_id, anchor_message_id=f"m-{base_count}", sequence_base=max_seq)
+        token = set_reasoning_buffer(buffer)
+        try:
+            result = await self._graph.ainvoke(
+                Command(resume=resume_value),
+                config=config,
+            )
+            await self._persist_reasoning_envelopes(config, buffer)
+        finally:
+            reset_reasoning_buffer(token)
         return await self._build_response(thread_id, config, result)
 
     async def get_thread(self, thread_id: str) -> ThreadResponseDto | InterruptResponseDto:
@@ -284,6 +259,7 @@ class BlueprintsService:
 
         logger.info("Successfully retrieved thread %s", thread_id)
         messages = _format_messages(state.values)
+        reasoning = (state.values or {}).get("reasoning", []) if isinstance(state.values, dict) else []
         interrupts = _extract_interrupts(state)
 
         if interrupts:
@@ -291,9 +267,10 @@ class BlueprintsService:
                 id=thread_id,
                 interrupts=interrupts,
                 messages=messages,
+                reasoning=reasoning,
             )
 
-        return ThreadResponseDto(id=thread_id, messages=messages)
+        return ThreadResponseDto(id=thread_id, messages=messages, reasoning=reasoning)
 
     async def start_stream(
         self,
@@ -303,14 +280,19 @@ class BlueprintsService:
         thread_id = str(uuid.uuid4())
         config = _stream_run_config(thread_id)
         state_input: dict[str, Any] = {"messages": [HumanMessage(content=request.message)]}
+        buffer = ReasoningBuffer(thread_id=thread_id, anchor_message_id="m-0", sequence_base=0)
+        token = set_reasoning_buffer(buffer)
         try:
-            async for event in self._stream_graph_execution(state_input, config):
+            async for event in self._stream_graph_execution(state_input, config, buffer, base_message_count=0):
                 yield event
+            await self._persist_reasoning_envelopes(config, buffer)
             async for event in self._stream_final_payload(thread_id, config):
                 yield event
         except Exception as e:  # noqa: BLE001 — surfaced to client as SSE error
             logger.exception("Blueprints start_stream failed for thread %s", thread_id)
             yield _sse_event({"category": "error", "detail": str(e)})
+        finally:
+            reset_reasoning_buffer(token)
 
     async def continue_stream(
         self,
@@ -334,19 +316,33 @@ class BlueprintsService:
                     "id": thread_id,
                     "interrupts": [i.model_dump(mode="json") for i in interrupts],
                     "messages": _format_messages(state.values) if state else [],
+                    "reasoning": (state.values or {}).get("reasoning", [])
+                    if state and isinstance(state.values, dict)
+                    else [],
                 }
             )
             return
 
         state_input: dict[str, Any] = {"messages": [HumanMessage(content=request.message)]}
+        existing_messages = _format_messages(state.values) if state and isinstance(state.values, dict) else []
+        base_count = len(existing_messages)
+        existing_reasoning = (
+            (state.values or {}).get("reasoning", []) if state and isinstance(state.values, dict) else []
+        )
+        max_seq = max((x.get("sequence", 0) for x in existing_reasoning if isinstance(x, dict)), default=0)
+        buffer = ReasoningBuffer(thread_id=thread_id, anchor_message_id=f"m-{base_count}", sequence_base=max_seq)
+        token = set_reasoning_buffer(buffer)
         try:
-            async for event in self._stream_graph_execution(state_input, config):
+            async for event in self._stream_graph_execution(state_input, config, buffer, base_message_count=base_count):
                 yield event
+            await self._persist_reasoning_envelopes(config, buffer)
             async for event in self._stream_final_payload(thread_id, config):
                 yield event
         except Exception as e:  # noqa: BLE001
             logger.exception("Blueprints continue_stream failed for thread %s", thread_id)
             yield _sse_event({"category": "error", "detail": str(e)})
+        finally:
+            reset_reasoning_buffer(token)
 
     async def resume_stream(
         self,
@@ -373,21 +369,39 @@ class BlueprintsService:
 
         resume_value = _build_human_response(request)
         command_input = Command(resume=resume_value)
+        existing_messages = _format_messages(state.values) if state and isinstance(state.values, dict) else []
+        base_count = len(existing_messages)
+        existing_reasoning = (
+            (state.values or {}).get("reasoning", []) if state and isinstance(state.values, dict) else []
+        )
+        max_seq = max((x.get("sequence", 0) for x in existing_reasoning if isinstance(x, dict)), default=0)
+        buffer = ReasoningBuffer(thread_id=thread_id, anchor_message_id=f"m-{base_count}", sequence_base=max_seq)
+        token = set_reasoning_buffer(buffer)
         try:
-            async for event in self._stream_graph_execution(command_input, config):
+            async for event in self._stream_graph_execution(
+                command_input, config, buffer, base_message_count=base_count
+            ):
                 yield event
+            await self._persist_reasoning_envelopes(config, buffer)
             async for event in self._stream_final_payload(thread_id, config):
                 yield event
         except Exception as e:  # noqa: BLE001
             logger.exception("Blueprints resume_stream failed for thread %s", thread_id)
             yield _sse_event({"category": "error", "detail": str(e)})
+        finally:
+            reset_reasoning_buffer(token)
 
     async def _stream_graph_execution(
         self,
         graph_input: Any,
         config: dict[str, Any],
+        buffer: ReasoningBuffer,
+        *,
+        base_message_count: int,
     ) -> AsyncIterator[dict[str, str]]:
         """Map LangGraph stream chunks to semantic SSE JSON events (``category`` field)."""
+        assistant_anchor_set = False
+        route_capture = SupervisorStructuredCaptureState()
         async for chunk in self._graph.astream(
             graph_input,
             config=config,
@@ -399,18 +413,73 @@ class BlueprintsService:
             mode, data = parsed
             if mode == "messages":
                 msg_chunk, _metadata = data
-                reasoning = _reasoning_delta_from_message_chunk(msg_chunk)
+                reasoning = extract_reasoning_delta(msg_chunk)
                 if reasoning:
-                    yield _sse_event({"category": "thinking", "content": reasoning})
-                text = _text_token_delta_from_message_chunk(msg_chunk)
-                if text:
+                    r_type, r_text = reasoning
+                    agent_type = extract_agent_type(msg_chunk)
+                    env = buffer.add_provider_delta(r_type, r_text, agent_type=agent_type)
                     yield _sse_event(
                         {
-                            "category": "delta",
-                            "content": text,
-                            "agent_type": _agent_type_from_message_chunk(msg_chunk),
+                            "category": "thinking",
+                            "type": r_type,
+                            "content": r_text,
+                            "kind": "step",
+                            "after_message_id": env.after_message_id,
+                            "sequence": env.sequence,
+                            "agent_type": agent_type,
                         }
                     )
+
+                text = extract_text_delta(msg_chunk)
+                if text:
+                    agent_type_msg = extract_agent_type(msg_chunk)
+                    emit_text, struct_effects = consume_supervisor_structured_delta(
+                        route_capture,
+                        text,
+                        agent_type=agent_type_msg,
+                    )
+                    for eff in struct_effects:
+                        if eff["kind"] == "supervisor_stream_start":
+                            yield _sse_event(
+                                {
+                                    "category": "thinking",
+                                    "type": "reasoning",
+                                    "content": "Receiving structured routing decision…",
+                                    "kind": "step",
+                                    "status": "running",
+                                    "node": "supervisor",
+                                    "after_message_id": buffer.anchor_message_id,
+                                }
+                            )
+                        elif eff["kind"] == "supervisor_stream_parsed":
+                            env = buffer.add_step(
+                                f"Structured routing complete → next_route={eff['next_route']}",
+                                status="completed",
+                                node="supervisor",
+                            )
+                            yield _sse_event(
+                                {
+                                    "category": "thinking",
+                                    "type": "reasoning",
+                                    "content": eff["reasoning"],
+                                    "kind": "step",
+                                    "status": "completed",
+                                    "after_message_id": env.after_message_id,
+                                    "sequence": env.sequence,
+                                    "node": "supervisor",
+                                }
+                            )
+                    if emit_text:
+                        if not assistant_anchor_set:
+                            buffer.close_on_text_delta(new_anchor_message_id=f"m-{base_message_count + 1}")
+                            assistant_anchor_set = True
+                        yield _sse_event(
+                            {
+                                "category": "delta",
+                                "content": emit_text,
+                                "agent_type": agent_type_msg,
+                            }
+                        )
             elif mode == "updates" and isinstance(data, dict):
                 for node_name in data:
                     mapped = _NODE_STATUS_MAP.get(node_name)
@@ -424,6 +493,12 @@ class BlueprintsService:
                             }
                         )
 
+    async def _persist_reasoning_envelopes(self, config: dict[str, Any], buffer: ReasoningBuffer) -> None:
+        envelopes = buffer.envelopes()
+        if not envelopes:
+            return
+        await self._graph.aupdate_state(config, {"reasoning": serialize_reasoning_envelopes(envelopes)})
+
     async def _stream_final_payload(
         self,
         thread_id: str,
@@ -434,6 +509,7 @@ class BlueprintsService:
         values = state.values if state else {}
         interrupts = _extract_interrupts(state)
         messages = _format_messages(values if isinstance(values, dict) else {})
+        reasoning = values.get("reasoning", []) if isinstance(values, dict) else []
 
         if interrupts:
             yield _sse_event(
@@ -442,6 +518,7 @@ class BlueprintsService:
                     "id": thread_id,
                     "interrupts": [i.model_dump(mode="json") for i in interrupts],
                     "messages": messages,
+                    "reasoning": reasoning,
                 }
             )
         else:
@@ -450,6 +527,7 @@ class BlueprintsService:
                     "category": "data",
                     "thread_id": thread_id,
                     "messages": messages,
+                    "reasoning": reasoning,
                 }
             )
 
@@ -491,7 +569,21 @@ class BlueprintsService:
         config = {"configurable": {"thread_id": thread_id}}
         state_input = {"messages": [HumanMessage(content=request.message)]}
 
-        result = await self._graph.ainvoke(state_input, config=config)
+        # Ensure fluent reasoning API is available during non-stream runs too.
+        state = await self._graph.aget_state(config)
+        existing_messages = _format_messages(state.values) if state and isinstance(state.values, dict) else []
+        base_count = len(existing_messages)
+        existing_reasoning = (
+            (state.values or {}).get("reasoning", []) if state and isinstance(state.values, dict) else []
+        )
+        max_seq = max((x.get("sequence", 0) for x in existing_reasoning if isinstance(x, dict)), default=0)
+        buffer = ReasoningBuffer(thread_id=thread_id, anchor_message_id=f"m-{base_count}", sequence_base=max_seq)
+        token = set_reasoning_buffer(buffer)
+        try:
+            result = await self._graph.ainvoke(state_input, config=config)
+            await self._persist_reasoning_envelopes(config, buffer)
+        finally:
+            reset_reasoning_buffer(token)
         return await self._build_response(thread_id, config, result)
 
     async def _build_response(
@@ -507,6 +599,7 @@ class BlueprintsService:
         """
         state = await self._graph.aget_state(config)
         interrupts = _extract_interrupts(state)
+        reasoning = (state.values or {}).get("reasoning", []) if state and isinstance(state.values, dict) else []
 
         messages = _format_messages(result)
 
@@ -515,6 +608,7 @@ class BlueprintsService:
                 id=thread_id,
                 interrupts=interrupts,
                 messages=messages,
+                reasoning=reasoning,
             )
 
-        return ThreadResponseDto(id=thread_id, messages=messages)
+        return ThreadResponseDto(id=thread_id, messages=messages, reasoning=reasoning)

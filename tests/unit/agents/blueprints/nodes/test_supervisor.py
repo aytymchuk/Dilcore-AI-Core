@@ -14,6 +14,7 @@ from agents.blueprints.constants import (
 from agents.blueprints.nodes.supervisor import SupervisorDecision, SupervisorNode
 from shared.exceptions.base import LLMProviderError
 from shared.models import LLMDecision
+from shared.reasoning import ReasoningBuffer, reset_reasoning_buffer, set_reasoning_buffer, with_reasoning_node
 
 
 @pytest.fixture
@@ -36,11 +37,19 @@ async def test_supervisor_routes_to_ask(mock_llm):
     node = SupervisorNode(mock_llm)
     state = {"messages": [], "current_phase": ""}
 
-    result = await node(state)
+    buf = ReasoningBuffer(thread_id="t1", anchor_message_id="m-0", sequence_base=0)
+    token = set_reasoning_buffer(buf)
+    try:
+        result = await with_reasoning_node("supervisor", node)(state)
+    finally:
+        reset_reasoning_buffer(token)
 
     assert isinstance(result, Command)
     assert result.goto == ASK_ROUTE
     assert result.update["current_phase"] == ASK_ROUTE
+    assert buf.envelopes()[0].header == "Understanding what you want to do"
+    assert any("blueprints" in (s.content or "").lower() for s in buf.envelopes()[0].steps)
+    assert any(s.kind == "summary" and "Next step:" in (s.content or "") for s in buf.envelopes()[0].steps)
 
 
 @pytest.mark.asyncio
@@ -109,6 +118,12 @@ async def test_supervisor_rejects_invalid_route(mock_llm):
     node = SupervisorNode(mock_llm)
     state = {"messages": [], "current_phase": ""}
 
-    result = await node(state)
+    buf = ReasoningBuffer(thread_id="t1", anchor_message_id="m-0", sequence_base=0)
+    token = set_reasoning_buffer(buf)
+    try:
+        result = await with_reasoning_node("supervisor", node)(state)
+    finally:
+        reset_reasoning_buffer(token)
 
     assert result.goto == IDENTIFY_INTENT_ROUTE
+    assert any(s.status == "skipped" and "available" in (s.content or "").lower() for s in buf.envelopes()[0].steps)

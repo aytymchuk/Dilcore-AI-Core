@@ -19,6 +19,7 @@ from agents.blueprints.models import (
     HumanInterruptConfig,
 )
 from agents.blueprints.state import BlueprintsState
+from shared.reasoning import add_step, add_summary, set_header
 
 
 class CollectUserResponseNode:
@@ -54,20 +55,34 @@ class CollectUserResponseNode:
         ]
 
     async def __call__(self, state: BlueprintsState) -> dict:
+        set_header("Waiting for your review")
+        add_step("Pausing until you approve the plan or send feedback.", status="running")
         interrupt_value = self._build_interrupt_value(state)
         response: Any = interrupt(interrupt_value)[0]
 
         resp_type = response.get("type", "response") if isinstance(response, dict) else "response"
 
         if resp_type == "accept":
+            add_step("You approved the plan as shown.", status="completed")
+            add_step("No edits were sent this time.", status="skipped")
+            add_step("No written corrections were sent this time.", status="skipped")
+            add_summary("You confirmed the plan—we can move forward.", status="completed")
             return {"generation_plan_confirmed": True}
 
         if resp_type == "edit":
+            add_step("You changed items in the plan.", status="completed")
+            add_step("You didn't approve the plan exactly as shown.", status="skipped")
+            add_step("You didn't send free-text corrections.", status="skipped")
+            add_summary("We'll take your edits and refresh the plan.", status="completed")
             args = response.get("args", "") if isinstance(response, dict) else str(response)
             content = json.dumps(args) if not isinstance(args, str) else args
             return {"messages": [HumanMessage(content=content)]}
 
         # "response" (free-text) or any unrecognised type
+        add_step("You asked for changes in your own words.", status="completed")
+        add_step("You didn't approve the plan exactly as shown.", status="skipped")
+        add_step("You didn't use the structured edit option.", status="skipped")
+        add_summary("We'll use your feedback to revise the plan.", status="completed")
         args = response.get("args", "") if isinstance(response, dict) else str(response)
         content = str(args) if args else ""
         return {"messages": [HumanMessage(content=content)]}

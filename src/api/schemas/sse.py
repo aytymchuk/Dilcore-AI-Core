@@ -10,7 +10,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
-from api.schemas.response import InterruptDto, MessageDto
+from api.schemas.response import InterruptDto, MessageDto, ReasoningEnvelopeDto
 
 # ---------------------------------------------------------------------------
 # Per-category payloads (discriminated by ``category``)
@@ -32,7 +32,23 @@ class SseThinkingEvent(BaseModel):
     """Model reasoning / extended-thinking delta when the provider exposes it."""
 
     category: Literal["thinking"] = "thinking"
+    type: Literal["thinking", "reasoning"] = Field(
+        ...,
+        description="Normalized reasoning block type for compatibility.",
+    )
     content: str = Field(..., description="Reasoning or thinking text delta.")
+    kind: Literal["step", "summary", "next_steps"] | None = Field(
+        default=None,
+        description="Optional structured kind for the emitted reasoning fragment.",
+    )
+    status: Literal["running", "completed", "failed", "skipped"] | None = Field(
+        default=None,
+        description="Optional status for the emitted reasoning fragment.",
+    )
+    after_message_id: str | None = Field(default=None, description="Message id this reasoning fragment follows.")
+    sequence: int | None = Field(default=None, description="Envelope sequence this fragment belongs to.")
+    node: str | None = Field(default=None, description="Graph node attribution when available.")
+    agent_type: str | None = Field(default=None, description="Sub-agent attribution when available.")
 
 
 class SseDeltaEvent(BaseModel):
@@ -55,6 +71,10 @@ class SseDataEvent(BaseModel):
         default_factory=list,
         description="Ordered messages after this run.",
     )
+    reasoning: list[ReasoningEnvelopeDto] = Field(
+        default_factory=list,
+        description="Ordered list of persisted reasoning envelopes for this thread.",
+    )
 
 
 class SseInterruptEvent(BaseModel):
@@ -69,6 +89,10 @@ class SseInterruptEvent(BaseModel):
     messages: list[MessageDto] = Field(
         default_factory=list,
         description="Messages produced before the interrupt.",
+    )
+    reasoning: list[ReasoningEnvelopeDto] = Field(
+        default_factory=list,
+        description="Ordered list of persisted reasoning envelopes for this thread.",
     )
 
 

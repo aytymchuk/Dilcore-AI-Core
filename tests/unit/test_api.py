@@ -1,5 +1,7 @@
 """Tests for API endpoints."""
 
+from __future__ import annotations
+
 from fastapi.testclient import TestClient
 
 
@@ -25,6 +27,23 @@ class TestScalarDocs:
         response = test_client.get("/scalar")
 
         assert response.status_code == 200
+
+    def test_scalar_enables_json_spec_download(self, monkeypatch, test_client: TestClient) -> None:
+        """Scalar docs should expose JSON/YAML OpenAPI downloads in the UI config."""
+        from scalar_fastapi.scalar_fastapi import DocumentDownloadType
+
+        captured: dict[str, object] = {}
+
+        def _fake_get_scalar_api_reference(**kwargs):
+            captured.update(kwargs)
+            return "<html>ok</html>"
+
+        # Patch where it's used (module import), not the library.
+        monkeypatch.setattr("api.openapi.get_scalar_api_reference", _fake_get_scalar_api_reference)
+
+        response = test_client.get("/scalar")
+        assert response.status_code == 200
+        assert captured.get("document_download_type") == DocumentDownloadType.BOTH
 
     def test_root_redirects_to_info(self, test_client: TestClient) -> None:
         """Root endpoint should provide docs info."""

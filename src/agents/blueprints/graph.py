@@ -24,6 +24,10 @@ class BlueprintsGraph:
     async def aget_state(self, config: dict) -> Any:
         return await self._runtime.compiled_graph.aget_state(config)
 
+    async def aupdate_state(self, config: dict, values: dict[str, Any]) -> Any:
+        """Update checkpointed state for a thread (writes go through reducers)."""
+        return await self._runtime.compiled_graph.aupdate_state(config, values)
+
     def astream(
         self,
         state: dict | Any,

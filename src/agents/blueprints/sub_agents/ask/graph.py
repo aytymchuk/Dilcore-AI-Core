@@ -8,6 +8,7 @@ from langgraph.graph.state import CompiledStateGraph
 from agents.blueprints.state import BlueprintsState
 from agents.blueprints.sub_agents.ask.nodes import AskAgentNode
 from shared.config import Settings
+from shared.reasoning import with_reasoning_node
 
 
 def build_ask_graph(settings: Settings) -> CompiledStateGraph:
@@ -19,7 +20,7 @@ def build_ask_graph(settings: Settings) -> CompiledStateGraph:
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():
-        workflow.add_node(name, node)
+        workflow.add_node(name, with_reasoning_node(name, node))
 
     workflow.set_entry_point("ask_agent")
     workflow.add_edge("ask_agent", END)

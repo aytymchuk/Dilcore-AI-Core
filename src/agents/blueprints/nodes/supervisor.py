@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 
 from agents.blueprints.constants import (
     ALL_ROUTES,
+    ASK_ROUTE,
+    DESIGN_ROUTE,
+    GENERATE_ROUTE,
     IDENTIFY_INTENT_ROUTE,
     RouteNames,
 )
@@ -15,8 +18,35 @@ from agents.blueprints.prompts import SUPERVISOR_SYSTEM_PROMPT
 from agents.blueprints.state import BlueprintsState
 from shared.exceptions.base import LLMProviderError
 from shared.models import LLMDecision
+from shared.reasoning import add_step, add_summary, set_header, with_step
 
 logger = logging.getLogger(__name__)
+
+
+def _describe_route_choice(route: str) -> str:
+    """User-facing description after routing."""
+    if route == ASK_ROUTE:
+        return "This looks like a question about Blueprints."
+    if route == DESIGN_ROUTE:
+        return "This looks like a design or coaching request."
+    if route == GENERATE_ROUTE:
+        return "This looks like a request to prepare or change a generation plan."
+    if route == IDENTIFY_INTENT_ROUTE:
+        return "I'll ask a short clarifying question so we pick the right path."
+    return "I'll choose the best Blueprints path based on what you said."
+
+
+def _next_step_summary_line(route: str) -> str:
+    """One-line summary for the final reasoning envelope."""
+    if route == ASK_ROUTE:
+        return "Next step: I'll answer your Blueprints question."
+    if route == DESIGN_ROUTE:
+        return "Next step: I'll help refine your blueprint design."
+    if route == GENERATE_ROUTE:
+        return "Next step: I'll prepare your blueprint generation plan."
+    if route == IDENTIFY_INTENT_ROUTE:
+        return "Next step: I'll ask what you'd like to do next."
+    return "Next step: continuing with Blueprints assistance."
 
 
 class SupervisorDecision(BaseModel):
@@ -36,6 +66,7 @@ class SupervisorNode:
         self._structured_llm = llm.with_structured_output(LLMDecision[SupervisorDecision])
 
     async def __call__(self, state: BlueprintsState) -> Command[RouteNames]:
+        set_header("Understanding what you want to do")
         current_phase = state.get("current_phase", "")
         design_context = state.get("design_context", "")
         generation_plan = state.get("generation_plan", [])
@@ -50,18 +81,34 @@ class SupervisorNode:
         messages = [SystemMessage(content=prompt)] + state["messages"]
 
         try:
-            output: LLMDecision[SupervisorDecision] = await self._structured_llm.ainvoke(messages)
+            output: LLMDecision[SupervisorDecision] = await with_step(
+                "Checking which part of Blueprints can help best",
+                lambda: self._structured_llm.ainvoke(messages),
+            )
             route = output.decision.next_route
             reasoning = output.reasoning
         except Exception as e:
             logger.exception("Failed to parse supervisor decision.")
             raise LLMProviderError(f"Failed to generate supervisor decision: {e}") from e
 
-        if route not in ALL_ROUTES:
+        unclear_pick = route not in ALL_ROUTES
+        if unclear_pick:
             logger.warning("Unexpected route from LLM: %s. Falling back to %s.", route, IDENTIFY_INTENT_ROUTE)
+            add_step(
+                "That path wasn't available, so I'll switch to asking what you'd like to do.",
+                status="skipped",
+            )
             route = IDENTIFY_INTENT_ROUTE
+        else:
+            add_step(_describe_route_choice(route), status="completed")
 
         logger.debug("Supervisor reasoning: %s", reasoning)
         logger.info("Supervisor routed to: %s", route)
 
+        line = _next_step_summary_line(route)
+        extra = ""
+        if unclear_pick:
+            extra = "\n\nWe weren't sure how to label your request at first, so we'll clarify next."
+
+        add_summary(f"{line}{extra}\n\n{reasoning}".strip())
         return Command(goto=route, update={"current_phase": route})

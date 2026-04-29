@@ -23,8 +23,9 @@ BLUEPRINTS_SSE_STREAM_CONTENT: dict[str, Any] = {
             ),
             "value": (
                 'data: {"category":"status","message":"Analyzing your request...","phase":"routing"}\n\n'
+                'data: {"category":"thinking","type":"reasoning","content":"Classifying intent...","kind":"step","status":"running","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null}\n\n'
                 'data: {"category":"delta","content":"Hello","agent_type":"ask"}\n\n'
-                'data: {"category":"data","thread_id":"00000000-0000-0000-0000-000000000000","messages":[]}\n\n'
+                'data: {"category":"data","thread_id":"00000000-0000-0000-0000-000000000000","messages":[{"id":"m-0","type":"human","content":"Hi","agent_type":null},{"id":"m-1","type":"ai","content":"Hello","agent_type":"ask"}],"reasoning":[{"id":"r-001","type":"reasoning","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null,"header":"Understanding what you want to do","steps":[{"kind":"step","status":"completed","content":"Classifying intent...","items":null}]}]}\n\n'
             ),
         },
     },

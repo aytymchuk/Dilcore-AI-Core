@@ -9,18 +9,34 @@ Defines the response shapes returned by thread endpoints:
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
 class MessageDto(BaseModel):
     """A single message exchanged within a thread."""
 
+    id: str = Field(..., description="Stable message identifier for anchoring reasoning.")
     type: str = Field(..., description="Message role (e.g. 'human', 'ai')")
     content: str = Field(..., description="Message text content")
     agent_type: str | None = Field(
         default=None,
         description="Sub-agent that produced this message: 'ask', 'design', or 'generate'.",
     )
+
+
+class ReasoningEnvelopeDto(BaseModel):
+    """A contiguous reasoning envelope anchored after a message."""
+
+    id: str = Field(..., description="Reasoning envelope identifier.")
+    type: Literal["thinking", "reasoning"] = Field(..., description="Reasoning block type.")
+    after_message_id: str = Field(..., description="Message id this envelope should render after.")
+    sequence: int = Field(..., description="Monotonic ordering of envelopes in the thread.")
+    node: str | None = Field(default=None, description="Graph node attribution when available.")
+    agent_type: str | None = Field(default=None, description="Sub-agent attribution when available.")
+    header: str | None = Field(default=None, description="Human-friendly envelope header for this node turn.")
+    steps: list[dict] = Field(default_factory=list, description="Structured reasoning steps (step/summary/next_steps).")
 
 
 class ActionRequestDto(BaseModel):
@@ -58,6 +74,10 @@ class ThreadResponseDto(BaseModel):
         default_factory=list,
         description="Ordered list of messages from the thread state",
     )
+    reasoning: list[ReasoningEnvelopeDto] = Field(
+        default_factory=list,
+        description="Ordered list of persisted reasoning envelopes for this thread.",
+    )
 
 
 class InterruptResponseDto(BaseModel):
@@ -75,6 +95,10 @@ class InterruptResponseDto(BaseModel):
     messages: list[MessageDto] = Field(
         default_factory=list,
         description="Messages produced before the interrupt (e.g. the presented plan).",
+    )
+    reasoning: list[ReasoningEnvelopeDto] = Field(
+        default_factory=list,
+        description="Ordered list of persisted reasoning envelopes for this thread.",
     )
 
 

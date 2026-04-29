@@ -11,6 +11,7 @@ from agents.blueprints.sub_agents.design.nodes import (
     UpdateDesignContextNode,
 )
 from shared.config import Settings
+from shared.reasoning import with_reasoning_node
 
 
 def build_design_graph(settings: Settings) -> CompiledStateGraph:
@@ -23,7 +24,7 @@ def build_design_graph(settings: Settings) -> CompiledStateGraph:
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():
-        workflow.add_node(name, node)
+        workflow.add_node(name, with_reasoning_node(name, node))
 
     workflow.set_entry_point("design_agent")
     workflow.add_edge("design_agent", "update_design_context")

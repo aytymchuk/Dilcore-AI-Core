@@ -24,6 +24,7 @@ from application.abstractions.abc_tenant_provider import AbcTenantProvider
 from infrastructure.checkpoint.tenant_resolving_checkpointer import tenant_aware_checkpointer
 from infrastructure.llm import create_llm
 from shared.config import Settings
+from shared.reasoning import with_reasoning_node
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,10 +40,10 @@ def build_supervisor_state_graph(settings: Settings) -> StateGraph:
     llm = create_llm(settings, streaming=True)
     builder = StateGraph(BlueprintsState)
 
-    builder.add_node("supervisor", SupervisorNode(llm))
+    builder.add_node("supervisor", with_reasoning_node("supervisor", SupervisorNode(llm)))
     builder.add_node(ASK_ROUTE, build_ask_graph(settings))
     builder.add_node(DESIGN_ROUTE, build_design_graph(settings))
-    builder.add_node(IDENTIFY_INTENT_ROUTE, IdentifyIntentNode())
+    builder.add_node(IDENTIFY_INTENT_ROUTE, with_reasoning_node(IDENTIFY_INTENT_ROUTE, IdentifyIntentNode()))
     builder.add_node(GENERATE_ROUTE, build_generate_graph(settings))
 
     builder.add_edge(ASK_ROUTE, END)

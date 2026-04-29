@@ -23,6 +23,7 @@ from agents.blueprints.sub_agents.generate.nodes import (
     WriteSuccessNode,
 )
 from shared.config import Settings
+from shared.reasoning import with_reasoning_node
 
 
 def _should_loop(state: BlueprintsState) -> str:
@@ -45,7 +46,7 @@ def build_generate_graph(settings: Settings) -> CompiledStateGraph:
 
     workflow = StateGraph(BlueprintsState)
     for name, node in nodes.items():
-        workflow.add_node(name, node)
+        workflow.add_node(name, with_reasoning_node(name, node))
 
     workflow.set_entry_point("build_plan")
     workflow.add_edge("build_plan", "present_plan")

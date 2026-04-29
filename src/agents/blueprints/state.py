@@ -5,6 +5,7 @@ The state is a TypedDict that flows through every node in the graph.
 
 from __future__ import annotations
 
+import operator
 from typing import Annotated, NotRequired
 
 from langchain_core.messages import BaseMessage
@@ -24,6 +25,7 @@ class BlueprintsState(TypedDict):
         design_context: LLM-generated summary of accumulated design decisions.
         generation_plan: Ordered list of planned generation actions.
         generation_plan_confirmed: Whether the user has confirmed the plan.
+        reasoning: Provider-exposed reasoning envelopes and app-authored rationale (append reducer).
     """
 
     messages: NotRequired[Annotated[list[BaseMessage], add_messages]]
@@ -31,3 +33,4 @@ class BlueprintsState(TypedDict):
     design_context: NotRequired[str]
     generation_plan: NotRequired[list[PlanAction]]
     generation_plan_confirmed: NotRequired[bool]
+    reasoning: NotRequired[Annotated[list[dict], operator.add]]
