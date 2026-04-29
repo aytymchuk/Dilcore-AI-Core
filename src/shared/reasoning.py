@@ -270,6 +270,49 @@ class ReasoningBuffer:
         env = self._ensure_envelope(r_type=r_type, node=node, agent_type=agent_type)
         return self._append_entry(env, ReasoningEntry(kind="step", status=status, content=content))
 
+    def add_assistant_reply_delta(
+        self,
+        content: str,
+        *,
+        node: str | None = None,
+        agent_type: str | None = None,
+    ) -> ReasoningEnvelope:
+        """Append streamed visible assistant answer text as reasoning steps.
+
+        Chunks merge into one running step (same as :meth:`add_provider_delta` with
+        ``r_type="reasoning"``) so replay shows process/context plus the assistant reply.
+        Call :meth:`finalize_streaming_steps` before persisting so steps are finalized.
+        """
+        return self.add_provider_delta(
+            "reasoning",
+            content,
+            status="running",
+            node=node,
+            agent_type=agent_type,
+        )
+
+    def finalize_streaming_steps(self, *, success: bool = True) -> None:
+        """Mark any running reasoning entries before persistence or stream failure.
+
+        Successful streams finalize ``running`` steps as ``completed``. When ``success`` is
+        false (e.g. stream-level error), ``running`` steps become ``failed``.
+        """
+        terminal: ReasoningStatus = "completed" if success else "failed"
+        for env_i, env in enumerate(self._envelopes):
+            changed = False
+            steps: list[ReasoningEntry] = []
+            for s in env.steps:
+                if s.status == "running":
+                    steps.append(ReasoningEntry(kind=s.kind, status=terminal, content=s.content, items=s.items))
+                    changed = True
+                else:
+                    steps.append(s)
+            if changed:
+                new_env = replace(env, steps=tuple(steps))
+                self._envelopes[env_i] = new_env
+                if self._open is not None and self._open.id == env.id:
+                    self._open = new_env
+
     def update_entry_status(
         self,
         *,
@@ -578,9 +621,9 @@ def consume_supervisor_structured_delta(
 
     Structured routing uses ``with_structured_output(LLMDecision)``, which often streams
     raw JSON as AIMessage text before subgraph tools run. Those chunks should not be shown
-    as answer ``delta`` events.
+    as visible assistant reply chunks (reasoning steps).
 
-    Returns ``(text_to_emit_as_delta_or_None, side_effects)``. Side effect kinds:
+    Returns ``(text_to_append_as_visible_reply_or_None, side_effects)``. Side effect kinds:
     - ``supervisor_stream_start``: first suppressed chunk for this JSON stream.
     - ``supervisor_stream_parsed``: JSON completed; includes ``reasoning`` and ``next_route`` strings.
 

@@ -17,15 +17,16 @@ BLUEPRINTS_SSE_STREAM_CONTENT: dict[str, Any] = {
     },
     "examples": {
         "mixed_turn": {
-            "summary": "Sample sequence (status, delta, terminal data)",
+            "summary": "Sample sequence (thinking progress + reply chunks, terminal data)",
             "description": (
-                "Two SSE events: a routing status line, then the final `data` payload with an empty message list."
+                "SSE stream: graph progress and streamed reasoning/assistant text as thinking steps "
+                "with explicit status, then final `data` with messages and persisted reasoning envelopes."
             ),
             "value": (
-                'data: {"category":"status","message":"Analyzing your request...","phase":"routing"}\n\n'
-                'data: {"category":"thinking","type":"reasoning","content":"Classifying intent...","kind":"step","status":"running","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null}\n\n'
-                'data: {"category":"delta","content":"Hello","agent_type":"ask"}\n\n'
-                'data: {"category":"data","thread_id":"00000000-0000-0000-0000-000000000000","messages":[{"id":"m-0","type":"human","content":"Hi","agent_type":null},{"id":"m-1","type":"ai","content":"Hello","agent_type":"ask"}],"reasoning":[{"id":"r-001","type":"reasoning","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null,"header":"Understanding what you want to do","steps":[{"kind":"step","status":"completed","content":"Classifying intent...","items":null}]}]}\n\n'
+                'data: {"category":"thinking","type":"reasoning","content":"Analyzing your request...","kind":"step","status":"completed","phase":"routing","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null}\n\n'
+                'data: {"category":"thinking","type":"reasoning","content":"Classifying intent...","kind":"step","status":"running","after_message_id":"m-0","sequence":2,"node":"supervisor","agent_type":null}\n\n'
+                'data: {"category":"thinking","type":"reasoning","content":"Hello","kind":"step","status":"running","after_message_id":"m-1","sequence":3,"node":"ask_agent","agent_type":"ask"}\n\n'
+                'data: {"category":"data","thread_id":"00000000-0000-0000-0000-000000000000","messages":[{"id":"m-0","type":"human","content":"Hi","agent_type":null},{"id":"m-1","type":"ai","content":"Hello","agent_type":"ask"}],"reasoning":[{"id":"r-001","type":"reasoning","after_message_id":"m-0","sequence":1,"node":"supervisor","agent_type":null,"header":"Understanding what you want to do","steps":[{"kind":"step","status":"completed","content":"Analyzing your request...","items":null},{"kind":"step","status":"completed","content":"Classifying intent...","items":null}]},{"id":"r-002","type":"reasoning","after_message_id":"m-1","sequence":3,"node":"ask_agent","agent_type":"ask","header":null,"steps":[{"kind":"step","status":"completed","content":"Hello","items":null}]}]}\n\n'
             ),
         },
     },

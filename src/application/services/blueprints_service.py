@@ -138,6 +138,14 @@ def _parse_langgraph_stream_chunk(chunk: Any) -> tuple[str, Any] | None:
     return None
 
 
+def _langgraph_node_from_stream_metadata(metadata: Any) -> str | None:
+    """Best-effort graph node name from LangGraph ``messages`` stream metadata."""
+    if not isinstance(metadata, dict):
+        return None
+    node = metadata.get("langgraph_node")
+    return node if isinstance(node, str) and node else None
+
+
 # LangGraph node name -> (user-facing status message, coarse phase for UI grouping)
 _NODE_STATUS_MAP: dict[str, tuple[str, str]] = {
     "supervisor": ("Analyzing your request...", "routing"),
@@ -157,6 +165,26 @@ _NODE_STATUS_MAP: dict[str, tuple[str, str]] = {
 
 # Nodes we expect to appear in stream updates (supervisor graph + inner nodes); used by tests.
 EXPECTED_STREAM_STATUS_NODES: frozenset[str] = frozenset(_NODE_STATUS_MAP.keys())
+
+
+def _graph_progress_thinking_sse(buffer: ReasoningBuffer, node_name: str) -> dict[str, Any] | None:
+    """Map a completed LangGraph ``updates`` node key to a persisted reasoning step + SSE payload."""
+    mapped = _NODE_STATUS_MAP.get(node_name)
+    if mapped is None:
+        return None
+    message, phase = mapped
+    env = buffer.add_step(message, status="completed", node=node_name)
+    return {
+        "category": "thinking",
+        "type": "reasoning",
+        "content": message,
+        "kind": "step",
+        "status": "completed",
+        "phase": phase,
+        "after_message_id": env.after_message_id,
+        "sequence": env.sequence,
+        "node": node_name,
+    }
 
 
 def _stream_run_config(thread_id: str) -> dict[str, Any]:
@@ -290,6 +318,10 @@ class BlueprintsService:
                 yield event
         except Exception as e:  # noqa: BLE001 — surfaced to client as SSE error
             logger.exception("Blueprints start_stream failed for thread %s", thread_id)
+            try:
+                await self._persist_reasoning_envelopes(config, buffer, streaming_success=False)
+            except Exception:  # noqa: BLE001
+                logger.exception("Blueprints start_stream failed to persist reasoning after error")
             yield _sse_event({"category": "error", "detail": str(e)})
         finally:
             reset_reasoning_buffer(token)
@@ -340,6 +372,10 @@ class BlueprintsService:
                 yield event
         except Exception as e:  # noqa: BLE001
             logger.exception("Blueprints continue_stream failed for thread %s", thread_id)
+            try:
+                await self._persist_reasoning_envelopes(config, buffer, streaming_success=False)
+            except Exception:  # noqa: BLE001
+                logger.exception("Blueprints continue_stream failed to persist reasoning after error")
             yield _sse_event({"category": "error", "detail": str(e)})
         finally:
             reset_reasoning_buffer(token)
@@ -387,6 +423,10 @@ class BlueprintsService:
                 yield event
         except Exception as e:  # noqa: BLE001
             logger.exception("Blueprints resume_stream failed for thread %s", thread_id)
+            try:
+                await self._persist_reasoning_envelopes(config, buffer, streaming_success=False)
+            except Exception:  # noqa: BLE001
+                logger.exception("Blueprints resume_stream failed to persist reasoning after error")
             yield _sse_event({"category": "error", "detail": str(e)})
         finally:
             reset_reasoning_buffer(token)
@@ -412,7 +452,8 @@ class BlueprintsService:
                 continue
             mode, data = parsed
             if mode == "messages":
-                msg_chunk, _metadata = data
+                msg_chunk, stream_metadata = data
+                stream_node = _langgraph_node_from_stream_metadata(stream_metadata)
                 reasoning = extract_reasoning_delta(msg_chunk)
                 if reasoning:
                     r_type, r_text = reasoning
@@ -424,6 +465,7 @@ class BlueprintsService:
                             "type": r_type,
                             "content": r_text,
                             "kind": "step",
+                            "status": "running",
                             "after_message_id": env.after_message_id,
                             "sequence": env.sequence,
                             "agent_type": agent_type,
@@ -473,27 +515,38 @@ class BlueprintsService:
                         if not assistant_anchor_set:
                             buffer.close_on_text_delta(new_anchor_message_id=f"m-{base_message_count + 1}")
                             assistant_anchor_set = True
+                        env_reply = buffer.add_assistant_reply_delta(
+                            emit_text,
+                            agent_type=agent_type_msg,
+                            node=stream_node,
+                        )
                         yield _sse_event(
                             {
-                                "category": "delta",
+                                "category": "thinking",
+                                "type": "reasoning",
                                 "content": emit_text,
+                                "kind": "step",
+                                "status": "running",
+                                "after_message_id": env_reply.after_message_id,
+                                "sequence": env_reply.sequence,
                                 "agent_type": agent_type_msg,
+                                "node": stream_node,
                             }
                         )
             elif mode == "updates" and isinstance(data, dict):
                 for node_name in data:
-                    mapped = _NODE_STATUS_MAP.get(node_name)
-                    if mapped is not None:
-                        message, phase = mapped
-                        yield _sse_event(
-                            {
-                                "category": "status",
-                                "message": message,
-                                "phase": phase,
-                            }
-                        )
+                    payload = _graph_progress_thinking_sse(buffer, node_name)
+                    if payload is not None:
+                        yield _sse_event(payload)
 
-    async def _persist_reasoning_envelopes(self, config: dict[str, Any], buffer: ReasoningBuffer) -> None:
+    async def _persist_reasoning_envelopes(
+        self,
+        config: dict[str, Any],
+        buffer: ReasoningBuffer,
+        *,
+        streaming_success: bool = True,
+    ) -> None:
+        buffer.finalize_streaming_steps(success=streaming_success)
         envelopes = buffer.envelopes()
         if not envelopes:
             return

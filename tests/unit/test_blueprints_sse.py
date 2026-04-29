@@ -14,6 +14,7 @@ from agents.blueprints.constants import (
 from application.services.blueprints_service import (
     _NODE_STATUS_MAP,
     EXPECTED_STREAM_STATUS_NODES,
+    _graph_progress_thinking_sse,
     _parse_langgraph_stream_chunk,
     _sse_event,
 )
@@ -114,6 +115,33 @@ class TestStreamHelpers:
         assert env3.id != env2.id
         assert env3.after_message_id == "m-1"
 
+    def test_assistant_reply_delta_merges_and_finalize_completes_running(self) -> None:
+        buf = ReasoningBuffer(thread_id="t1", anchor_message_id="m-0", sequence_base=0)
+        buf.close_on_text_delta(new_anchor_message_id="m-1")
+        env1 = buf.add_assistant_reply_delta("Hel")
+        env2 = buf.add_assistant_reply_delta("lo")
+        assert env1.id == env2.id
+        assert env2.steps[-1].content == "Hello"
+        assert env2.steps[-1].status == "running"
+        buf.finalize_streaming_steps(success=True)
+        assert buf.envelopes()[-1].steps[-1].status == "completed"
+
+    def test_finalize_streaming_steps_failure_marks_running_failed(self) -> None:
+        buf = ReasoningBuffer(thread_id="t1", anchor_message_id="m-0", sequence_base=0)
+        buf.add_provider_delta("reasoning", "x", status="running")
+        buf.finalize_streaming_steps(success=False)
+        assert buf.envelopes()[0].steps[-1].status == "failed"
+
+    def test_graph_progress_maps_to_thinking_sse_payload(self) -> None:
+        buf = ReasoningBuffer(thread_id="t1", anchor_message_id="m-0", sequence_base=0)
+        payload = _graph_progress_thinking_sse(buf, "supervisor")
+        assert payload is not None
+        assert payload["category"] == "thinking"
+        assert payload["status"] == "completed"
+        assert payload["phase"] == "routing"
+        assert payload["node"] == "supervisor"
+        assert buf.envelopes()[0].steps[0].status == "completed"
+
     @pytest.mark.asyncio
     async def test_reasoning_node_wrapper_supplies_node_attribution(self) -> None:
         async def node(_state: dict) -> dict:
@@ -192,7 +220,7 @@ class TestStreamHelpers:
         assert payload["thread_id"] == "t1"
 
     def test_node_status_map_covers_supervisor_and_inner_nodes(self) -> None:
-        """Streaming status events require a mapping for every user-visible graph node."""
+        """Graph progress / LangGraph updates require a mapping for every user-visible graph node."""
         required = frozenset(
             {
                 "supervisor",
@@ -241,3 +269,8 @@ class TestBlueprintsSseOpenApi:
         root = components["BlueprintSseEvent"]
         assert "oneOf" in root
         assert root.get("discriminator", {}).get("propertyName") == "category"
+
+    def test_openapi_blueprint_sse_categories_exclude_legacy_status(self) -> None:
+        schema = app.openapi()
+        mapping = schema["components"]["schemas"]["BlueprintSseEvent"]["discriminator"]["mapping"]
+        assert set(mapping.keys()) == {"thinking", "data", "interrupt", "error"}

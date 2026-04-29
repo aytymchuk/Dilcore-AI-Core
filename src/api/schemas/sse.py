@@ -17,19 +17,8 @@ from api.schemas.response import InterruptDto, MessageDto, ReasoningEnvelopeDto
 # ---------------------------------------------------------------------------
 
 
-class SseStatusEvent(BaseModel):
-    """High-level step (routing or sub-phase)."""
-
-    category: Literal["status"] = "status"
-    message: str = Field(..., description="User-facing status line.")
-    phase: str = Field(
-        ...,
-        description="Coarse phase, e.g. routing, ask, design, generate, identify_intent.",
-    )
-
-
 class SseThinkingEvent(BaseModel):
-    """Model reasoning / extended-thinking delta when the provider exposes it."""
+    """Model reasoning / extended-thinking deltas (provider blocks and streamed assistant text)."""
 
     category: Literal["thinking"] = "thinking"
     type: Literal["thinking", "reasoning"] = Field(
@@ -49,16 +38,9 @@ class SseThinkingEvent(BaseModel):
     sequence: int | None = Field(default=None, description="Envelope sequence this fragment belongs to.")
     node: str | None = Field(default=None, description="Graph node attribution when available.")
     agent_type: str | None = Field(default=None, description="Sub-agent attribution when available.")
-
-
-class SseDeltaEvent(BaseModel):
-    """Streamed assistant text token(s)."""
-
-    category: Literal["delta"] = "delta"
-    content: str = Field(..., description="Visible assistant text delta.")
-    agent_type: str | None = Field(
+    phase: str | None = Field(
         default=None,
-        description="Sub-agent when tagged: ask, design, or generate.",
+        description="Coarse graph phase for routing/sub-agent progress (LangGraph node completion).",
     )
 
 
@@ -104,7 +86,7 @@ class SseErrorEvent(BaseModel):
 
 
 BlueprintSseEvent = Annotated[
-    SseStatusEvent | SseThinkingEvent | SseDeltaEvent | SseDataEvent | SseInterruptEvent | SseErrorEvent,
+    SseThinkingEvent | SseDataEvent | SseInterruptEvent | SseErrorEvent,
     Field(discriminator="category"),
 ]
 

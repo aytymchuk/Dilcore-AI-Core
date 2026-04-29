@@ -48,8 +48,8 @@ async def start_thread(
     description=(
         "Starts a new thread and streams LangGraph execution as Server-Sent Events. "
         "Each event's ``data`` is JSON with a ``category`` field: "
-        "``status`` (high-level step), ``thinking`` (model reasoning when available), "
-        "``delta`` (streamed assistant text), ``data`` (final thread state), "
+        "``thinking`` (provider reasoning, graph progress, streamed assistant text "
+        "with explicit ``status``), ``data`` (final thread state), "
         "``interrupt`` (human-in-the-loop), or ``error``. "
         "See ``components.schemas.BlueprintSseEvent`` for the full payload union."
     ),
@@ -154,7 +154,7 @@ async def resume_thread(
     summary="Resume an interrupted thread (SSE stream)",
     description=(
         "Same as ``/resume`` but streams execution via SSE "
-        "(``category``: ``status``, ``thinking``, ``delta``, ``data``, ``interrupt``, ``error``). "
+        "(``category``: ``thinking``, ``data``, ``interrupt``, ``error``). "
         "Payload shapes: ``components.schemas.BlueprintSseEvent``."
     ),
     responses={
